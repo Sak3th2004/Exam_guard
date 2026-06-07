@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.whl
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Database
+*.db
+*.sqlite3
+
+# Uploads & Generated
+backend/uploads/
+backend/reports/
+backend/models_cache/
+
+# PyTorch models
+*.pt
+*.pth
+best_gnn.pt
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Docker
+.docker/
+
+# Docs artifacts (keep the master docs in repo for reference)
+EXAMGUARD_v2_COMPLETE_MASTER.md
+EXAMGUARD_v2_AI_AGENT_PROMPT.md
+EXAMGUARD_v2_README.md
