@@ -42,11 +42,13 @@ app.add_middleware(
 
 # ── Register Routes ──
 from api.routes.analysis import router as analysis_router
+from api.routes.benchmark import router as benchmark_router
 from api.routes.generator import router as generator_router
 from api.routes.health import router as health_router
 from api.websocket import router as ws_router
 
 app.include_router(analysis_router, prefix=settings.API_PREFIX, tags=["Analysis"])
+app.include_router(benchmark_router, prefix=settings.API_PREFIX, tags=["Benchmark"])
 app.include_router(generator_router, prefix=settings.API_PREFIX, tags=["Generator"])
 app.include_router(health_router, tags=["System"])
 app.include_router(ws_router)

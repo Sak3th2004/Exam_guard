@@ -83,6 +83,11 @@ export const api = {
     return `${API_BASE}/analyses/${analysisId}/report`;
   },
 
+  async getBenchmark(analysisId) {
+    const res = await fetch(`${API_BASE}/analyses/${analysisId}/benchmark`);
+    return res.json();
+  },
+
   connectWebSocket(analysisId, onMessage) {
     const ws = new WebSocket(`${WS_BASE}/ws/analyses/${analysisId}`);
     ws.onmessage = (event) => {
