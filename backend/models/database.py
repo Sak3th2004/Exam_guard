@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, ForeignKey, Integer, Real, String, Text, event
+from sqlalchemy import Column, Float, ForeignKey, Integer, String, Text, event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -34,7 +34,7 @@ class Analysis(Base):
     total_questions = Column(Integer, default=0)
     total_centers = Column(Integer, default=0)
     status = Column(String, default="uploading")
-    overall_score = Column(Real, nullable=True)
+    overall_score = Column(Float, nullable=True)
     config = Column(Text, nullable=True)
     file_path = Column(Text, nullable=True)
     report_path = Column(Text, nullable=True)
@@ -74,7 +74,7 @@ class FlaggedEntity(Base):
     engine_name = Column(String, nullable=False)
     entity_type = Column(String, nullable=False)  # student | center | pair | question
     entity_id = Column(String, nullable=False)
-    confidence = Column(Real, default=0.0)
+    confidence = Column(Float, default=0.0)
     evidence = Column(Text, nullable=True)  # JSON
     severity = Column(String, default="low")
 
