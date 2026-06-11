@@ -21,8 +21,8 @@ async def health_check():
         gpu_available = torch.cuda.is_available()
         if gpu_available:
             gpu_name = torch.cuda.get_device_name(0)
-            gpu_memory_mb = torch.cuda.get_device_properties(0).total_mem // (1024 * 1024)
-    except ImportError:
+            gpu_memory_mb = torch.cuda.get_device_properties(0).total_memory // (1024 * 1024)
+    except Exception:
         pass
 
     try:
