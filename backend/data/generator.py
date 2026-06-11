@@ -288,11 +288,14 @@ def generate_exam_data(
     }
     fraud_labels = np.zeros(n_students, dtype=np.int32)
 
-    # Pattern A: Copy Rings
+    # Pattern A: Copy Rings — indices proportional to actual center count
     ring_configs = [
-        {"size": 23, "center_idx": 42, "overlap": 0.85},
-        {"size": 15, "center_idx": 89, "overlap": 0.80},
-        {"size": 8, "center_indices": [105, 106], "overlap": 0.82},
+        {"size": 23, "center_idx": min(n_centers - 1, max(0, int(n_centers * 0.09))), "overlap": 0.85},
+        {"size": 15, "center_idx": min(n_centers - 1, max(0, int(n_centers * 0.20))), "overlap": 0.80},
+        {"size": 8, "center_indices": [
+            min(n_centers - 1, max(0, int(n_centers * 0.23))),
+            min(n_centers - 1, max(0, int(n_centers * 0.24))),
+        ], "overlap": 0.82},
     ]
 
     for ring_config in ring_configs:
@@ -315,8 +318,11 @@ def generate_exam_data(
             })
             fraud_labels[ring_students] = 1
 
-    # Pattern B: Paper Leak
-    report_progress(40, "Injecting fraud Pattern B: paper leak (Q45-Q120)")
+    # Pattern B: Paper Leak — range proportional to question count
+    leak_start = max(0, int(n_questions * 0.22))
+    leak_end = min(n_questions, int(n_questions * 0.60))
+    n_leak = min(340, n_students // 3)
+    report_progress(40, f"Injecting fraud Pattern B: paper leak (Q{leak_start+1}-Q{leak_end})")
 
     leaked_indices = _inject_paper_leak(
         answers=answers,
@@ -324,8 +330,8 @@ def generate_exam_data(
         correct_matrix=correct_matrix,
         abilities=abilities,
         n_students=n_students,
-        n_leak_students=340,
-        leak_range=(44, 120),  # 0-indexed: Q45-Q120
+        n_leak_students=n_leak,
+        leak_range=(leak_start, leak_end),
         accuracy_range=(0.88, 0.95),
         rng=rng,
     )
@@ -373,8 +379,8 @@ def generate_exam_data(
         timing_cheater_indices = _inject_timing_fraud(
             timing_data=timing_data,
             leaked_indices=leaked_indices,
-            leak_range=(44, 120),
-            n_cheaters=89,
+            leak_range=(leak_start, leak_end),
+            n_cheaters=min(89, len(leaked_indices) // 4 + 1),
             rng=rng,
         )
         ground_truth["timing_cheaters"] = timing_cheater_indices.tolist()
@@ -594,34 +600,38 @@ def _inject_center_anomalies(
     CTR_042: Already has copy ring (Pattern A)
     """
     anomalous = []
+    n_centers = len(center_ids)
 
-    # Center 156: Score inflation — 30% of wrong answers flipped to correct
-    if 156 < len(center_ids):
-        ctr_id = center_ids[156]
-        students = student_indices_by_center.get(ctr_id, [])
-        for s_idx in students:
-            wrong_qs = np.where(answers[s_idx] != answer_key)[0]
-            n_flip = int(len(wrong_qs) * 0.30)
-            if n_flip > 0:
-                flip_qs = rng.choice(wrong_qs, size=n_flip, replace=False)
-                answers[s_idx, flip_qs] = answer_key[flip_qs]
-        anomalous.append(156)
+    # Center for score inflation — ~35% into center list
+    inflate_idx = min(n_centers - 1, max(0, int(n_centers * 0.35)))
+    ctr_id = center_ids[inflate_idx]
+    students = student_indices_by_center.get(ctr_id, [])
+    for s_idx in students:
+        wrong_qs = np.where(answers[s_idx] != answer_key)[0]
+        n_flip = int(len(wrong_qs) * 0.30)
+        if n_flip > 0:
+            flip_qs = rng.choice(wrong_qs, size=n_flip, replace=False)
+            answers[s_idx, flip_qs] = answer_key[flip_qs]
+    anomalous.append(inflate_idx)
 
-    # Center 203: Low diversity — suppress wrong answer entropy
-    if 203 < len(center_ids):
-        ctr_id = center_ids[203]
+    # Center for low diversity — ~45% into center list
+    diversity_idx = min(n_centers - 1, max(0, int(n_centers * 0.45)))
+    if diversity_idx != inflate_idx:
+        ctr_id = center_ids[diversity_idx]
         students = student_indices_by_center.get(ctr_id, [])
         if students:
-            # Force all wrong answers to be the same option
+            n_options = answers.max() + 1
             for q in range(answers.shape[1]):
-                wrong_option = (answer_key[q] + 1) % answers.shape[1]
+                wrong_option = (answer_key[q] + 1) % n_options
                 for s_idx in students:
                     if answers[s_idx, q] != answer_key[q]:
                         answers[s_idx, q] = wrong_option
-        anomalous.append(203)
+        anomalous.append(diversity_idx)
 
-    # Center 42: Already has copy ring from Pattern A
-    anomalous.append(42)
+    # Copy ring center (from Pattern A) — ~9% into center list
+    copy_center_idx = min(n_centers - 1, max(0, int(n_centers * 0.09)))
+    if copy_center_idx not in anomalous:
+        anomalous.append(copy_center_idx)
 
     return anomalous
 
