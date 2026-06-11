@@ -87,36 +87,48 @@ class XGBoostEnsembleEngine(BaseEngine):
         # Count engines that flagged each student
         engines_flagged = np.zeros(n_students, dtype=np.float32)
 
+        def _get_engine_data(name):
+            """Extract flagged_student_ids and result_data from EngineOutput or dict."""
+            d = engine_results.get(name)
+            if d is None:
+                return set(), {}
+            if hasattr(d, 'flagged_student_ids'):
+                # EngineOutput dataclass
+                fids = set(d.flagged_student_ids or [])
+                rdata = d.result_data if isinstance(d.result_data, dict) else {}
+            elif isinstance(d, dict):
+                fids = set(d.get("flagged_student_ids", []))
+                rdata = d.get("result_data", {})
+            else:
+                fids, rdata = set(), {}
+            return fids, rdata
+
         # E1: Copy Ring
-        e1_data = engine_results.get("copy_ring", {})
-        e1_flagged_set = set(e1_data.get("flagged_student_ids", []))
+        e1_flagged_set, e1_result = _get_engine_data("copy_ring")
         for i, sid in enumerate(student_ids):
             if sid in e1_flagged_set:
                 engines_flagged[i] += 1
-                # Find cluster info
-                for cluster in e1_data.get("result_data", {}).get("clusters", []):
+                for cluster in e1_result.get("clusters", []):
                     if sid in cluster.get("students", []):
                         X[i, 0] = cluster.get("avg_similarity", 0)
                         X[i, 1] = cluster.get("size", 0)
                         break
 
         # E2: Stat Impossibility
-        e2_data = engine_results.get("stat_impossibility", {})
-        e2_flagged_set = set(e2_data.get("flagged_student_ids", []))
+        e2_flagged_set, e2_result = _get_engine_data("stat_impossibility")
         for i, sid in enumerate(student_ids):
             if sid in e2_flagged_set:
                 engines_flagged[i] += 1
-                # Find p-value
-                for pair in e2_data.get("result_data", {}).get("pairs", []):
+                for pair in e2_result.get("pairs", []):
                     if pair.get("student_a") == sid or pair.get("student_b") == sid:
                         pval = pair.get("p_value", 1.0)
                         X[i, 2] = float(np.log10(max(pval, 1e-300)))
                         break
 
         # E3: Center Anomaly
-        e3_data = engine_results.get("center_anomaly", {})
+        e3_flagged_set, e3_result = _get_engine_data("center_anomaly")
         center_anomaly_map = {}
-        for center in e3_data.get("result_data", {}).get("centers", []):
+        for center in e3_result.get("centers", []):
             center_anomaly_map[center["center_id"]] = center.get("anomaly_score", 0)
         for i, sid in enumerate(student_ids):
             if center_ids and i < len(center_ids):
@@ -125,24 +137,22 @@ class XGBoostEnsembleEngine(BaseEngine):
                     engines_flagged[i] += 1
 
         # E4: Leak Signature
-        e4_data = engine_results.get("leak_signature", {})
-        e4_flagged_set = set(e4_data.get("flagged_student_ids", []))
+        e4_flagged_set, e4_result = _get_engine_data("leak_signature")
         for i, sid in enumerate(student_ids):
             if sid in e4_flagged_set:
                 engines_flagged[i] += 1
                 X[i, 4] = 0  # Will be overwritten with actual gradient if available
 
         # E5: Response Time
-        e5_data = engine_results.get("response_time", {})
-        e5_flagged_set = set(e5_data.get("flagged_student_ids", []))
+        e5_flagged_set, e5_result = _get_engine_data("response_time")
         for i, sid in enumerate(student_ids):
             if sid in e5_flagged_set:
                 engines_flagged[i] += 1
                 X[i, 6] = 0.1  # Low speed ratio
 
         # E6: GNN
-        e6_data = engine_results.get("gnn_copy_ring", {})
-        fraud_probs = e6_data.get("result_data", {}).get("fraud_probabilities", {})
+        e6_flagged_set, e6_result = _get_engine_data("gnn_copy_ring")
+        fraud_probs = e6_result.get("fraud_probabilities", {})
         for i, sid in enumerate(student_ids):
             if sid in fraud_probs:
                 X[i, 7] = fraud_probs[sid]
@@ -150,15 +160,14 @@ class XGBoostEnsembleEngine(BaseEngine):
                     engines_flagged[i] += 1
 
         # E7: VAE
-        e7_data = engine_results.get("vae_anomaly", {})
-        anomaly_scores_map = e7_data.get("result_data", {}).get("anomaly_scores", {})
+        e7_flagged_set, e7_result = _get_engine_data("vae_anomaly")
+        anomaly_scores_map = e7_result.get("anomaly_scores", {})
         if anomaly_scores_map:
             scores_arr = np.array(list(anomaly_scores_map.values()))
             vae_max = scores_arr.max() if len(scores_arr) > 0 else 1.0
             for i, sid in enumerate(student_ids):
                 if sid in anomaly_scores_map:
                     X[i, 8] = anomaly_scores_map[sid] / max(vae_max, 1e-8)
-            e7_flagged_set = set(e7_data.get("flagged_student_ids", []))
             for i, sid in enumerate(student_ids):
                 if sid in e7_flagged_set:
                     engines_flagged[i] += 1
@@ -274,7 +283,7 @@ class XGBoostEnsembleEngine(BaseEngine):
             if sid in e4_flagged_set: flagged_engines.append("E4:LeakSig")
             if sid in e5_flagged_set: flagged_engines.append("E5:RespTime")
             if sid in fraud_probs and fraud_probs[sid] > 0.5: flagged_engines.append("E6:GNN")
-            if sid in set(e7_data.get("flagged_student_ids", [])): flagged_engines.append("E7:VAE")
+            if sid in e7_flagged_set: flagged_engines.append("E7:VAE")
 
             rankings.append({
                 "student_id": sid,
