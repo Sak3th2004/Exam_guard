@@ -872,7 +872,7 @@ function ComparePage() {
               <div className="stat-card__label">Total Questions</div>
             </div>
             <div className="stat-card stat-card--red">
-              <div className="stat-card__value">{comparison.matching_answers || 0}</div>
+              <div className="stat-card__value">{comparison.matching_total || 0}</div>
               <div className="stat-card__label">Matching Answers</div>
             </div>
             <div className="stat-card stat-card--orange">
@@ -880,8 +880,12 @@ function ComparePage() {
               <div className="stat-card__label">Matching Wrong</div>
             </div>
             <div className="stat-card stat-card--purple">
-              <div className="stat-card__value">{((comparison.similarity || 0) * 100).toFixed(1)}%</div>
-              <div className="stat-card__label">Similarity</div>
+              <div className="stat-card__value">{((comparison.jaccard || 0) * 100).toFixed(1)}%</div>
+              <div className="stat-card__label">Jaccard</div>
+            </div>
+            <div className="stat-card stat-card--cyan">
+              <div className="stat-card__value">{((comparison.waa || 0) * 100).toFixed(1)}%</div>
+              <div className="stat-card__label">WAA</div>
             </div>
           </div>
 
@@ -889,12 +893,12 @@ function ComparePage() {
           {comparison.p_value !== undefined && (
             <div style={{
               padding: '16px 20px', marginBottom: '20px',
-              background: comparison.is_suspicious ? 'var(--danger-bg)' : 'var(--success-bg)',
-              border: `1px solid ${comparison.is_suspicious ? 'rgba(220,38,38,0.2)' : 'rgba(5,150,105,0.2)'}`,
+              background: comparison.p_value < 0.01 ? 'rgba(239,68,68,0.06)' : 'rgba(5,150,105,0.06)',
+              border: `1px solid ${comparison.p_value < 0.01 ? 'rgba(220,38,38,0.2)' : 'rgba(5,150,105,0.2)'}`,
               borderRadius: 'var(--radius-sm)',
             }}>
-              <strong style={{ color: comparison.is_suspicious ? 'var(--danger)' : 'var(--success)' }}>
-                {comparison.is_suspicious ? '⚠️ Suspicious Match' : '✅ Normal Match'}
+              <strong style={{ color: comparison.p_value < 0.01 ? 'var(--danger)' : 'var(--success)' }}>
+                {comparison.p_value < 0.01 ? '⚠️ Statistically Suspicious Match' : '✅ Normal Match'}
               </strong>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
                 P-value: {comparison.p_value?.toExponential(2)} · {comparison.human_readable || ''}
@@ -903,27 +907,22 @@ function ComparePage() {
           )}
 
           {/* Answer-by-answer comparison */}
-          {comparison.answers_a && comparison.answers_b && (
+          {comparison.per_question && comparison.per_question.length > 0 && (
             <div className="table-container" style={{ maxHeight: '400px', overflow: 'auto' }}>
               <table className="data-table">
                 <thead>
-                  <tr><th>Q#</th><th>Student A</th><th>Student B</th><th>Match</th><th>Correct</th></tr>
+                  <tr><th>Q#</th><th>Student A</th><th>Student B</th><th>Match</th><th>Both Wrong</th></tr>
                 </thead>
                 <tbody>
-                  {comparison.answers_a.map((a, i) => {
-                    const b = comparison.answers_b[i];
-                    const match = a === b;
-                    const correct = comparison.answer_key ? a === comparison.answer_key[i] : null;
-                    return (
-                      <tr key={i} style={{ background: match ? 'rgba(239,68,68,0.04)' : 'transparent' }}>
-                        <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{i + 1}</td>
-                        <td style={{ fontFamily: 'var(--font-mono)' }}>{String.fromCharCode(65 + a)}</td>
-                        <td style={{ fontFamily: 'var(--font-mono)' }}>{String.fromCharCode(65 + b)}</td>
-                        <td>{match ? <span style={{ color: 'var(--danger)', fontWeight: 600 }}>●</span> : '—'}</td>
-                        <td>{correct !== null ? (correct ? '✓' : '✗') : '—'}</td>
-                      </tr>
-                    );
-                  })}
+                  {comparison.per_question.map((q, i) => (
+                    <tr key={i} style={{ background: q.is_match ? (q.is_both_wrong ? 'rgba(239,68,68,0.08)' : 'rgba(59,130,246,0.04)') : 'transparent' }}>
+                      <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{q.question}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)' }}>{String.fromCharCode(65 + q.answer_a)}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)' }}>{String.fromCharCode(65 + q.answer_b)}</td>
+                      <td>{q.is_match ? <span style={{ color: q.is_both_wrong ? 'var(--danger)' : 'var(--accent)', fontWeight: 600 }}>●</span> : '—'}</td>
+                      <td>{q.is_both_wrong ? <span style={{ color: 'var(--danger)', fontWeight: 600 }}>⚠</span> : q.is_both_correct ? '✓✓' : '—'}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
