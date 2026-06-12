@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     QUESTION_SIMILARITY_THRESHOLD: float = 0.85
     CROSS_EXAM_SIMILARITY_THRESHOLD: float = 0.80
     BONFERRONI_ALPHA: float = 0.05
+    BENFORD_ALPHA: float = 0.05
+    BENFORD_CENTER_ALPHA: float = 0.01
 
     # ── Risk Tiers ──
     RISK_CRITICAL_THRESHOLD: float = 0.8
