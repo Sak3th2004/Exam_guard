@@ -37,6 +37,7 @@ from engines.gnn_fraud import GNNFraudEngine
 from engines.vae_anomaly import VAEAnomalyEngine
 from engines.question_similarity import QuestionSimilarityEngine
 from engines.xgboost_ensemble import XGBoostEnsembleEngine
+from engines.benford import BenfordEngine
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,9 @@ class AnalysisOrchestrator:
 
         # Layer 3: Ensemble (GPU)
         self.xgboost_ensemble = XGBoostEnsembleEngine()
+
+        # Bonus: Forensic
+        self.e9_benford = BenfordEngine()
 
     async def run_analysis(
         self,
@@ -119,13 +123,15 @@ class AnalysisOrchestrator:
                            make_progress_cb("leak_signature")),
             self._run_engine(self.e5_response_time, common_kwargs, {},
                            make_progress_cb("response_time")),
+            self._run_engine(self.e9_benford, common_kwargs, {},
+                           make_progress_cb("benford_law")),
         ]
 
         layer1_results = await asyncio.gather(*layer1_tasks, return_exceptions=True)
 
         # Process results
         for engine_name, result in zip(
-            ["copy_ring", "center_anomaly", "leak_signature", "response_time"],
+            ["copy_ring", "center_anomaly", "leak_signature", "response_time", "benford_law"],
             layer1_results,
         ):
             if isinstance(result, Exception):
