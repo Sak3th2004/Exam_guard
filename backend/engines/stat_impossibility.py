@@ -83,7 +83,7 @@ class StatImpossibilityEngine(BaseEngine):
                     i = sample_indices[idx_i]
                     j = sample_indices[idx_j]
                     matches = int((answers[i] == answers[j]).sum())
-                    if matches > n_questions * p_avg * 1.5:
+                    if matches > n_questions * p_avg * 1.8:  # Stricter threshold
                         candidate_pairs.append((i, j, matches))
 
                 if idx_i % 500 == 0 and idx_i > 0:

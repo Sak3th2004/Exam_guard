@@ -119,10 +119,11 @@ class ResponseTimeEngine(BaseEngine):
 
         kmeans_flagged = (cluster_labels == cheater_cluster)
 
-        # ── Combine flags ──
+        # ── Combine flags: speed + kmeans must agree (reduces false positives) ──
         self.report_progress(80, "Combining detection signals")
 
-        combined_flagged = speed_flagged | kmeans_flagged
+        # Use intersection: student must be fast AND in cheater cluster
+        combined_flagged = speed_flagged & kmeans_flagged
         flagged_indices = np.where(combined_flagged)[0]
         flagged_ids = [student_ids[i] for i in flagged_indices]
 
