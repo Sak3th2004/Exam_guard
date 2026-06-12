@@ -172,6 +172,7 @@ async def generate_report(
         "vae_anomaly": ("E7: VAE Anomaly Detection", "Variational Autoencoder (PyTorch)"),
         "question_similarity": ("E8: Question Similarity", "Sentence Transformer NLP"),
         "xgboost_ensemble": ("META: XGBoost Ensemble", "Gradient Boosted Classifier"),
+        "benford_law": ("E9: Benford's Law", "Chi-Squared First-Digit Forensics"),
     }
 
     all_flagged: set[str] = set()
