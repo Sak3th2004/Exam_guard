@@ -3,14 +3,14 @@
 Architecture: GraphSAGE (2-layer) for node classification
 Framework: PyTorch Geometric
 
-Takes Engine 1's similarity graph, adds node features, and trains a GNN
-to classify fraud vs clean nodes. Catches sophisticated fraud that
-rule-based Louvain clustering misses.
+Takes Engine 1's similarity graph OR builds its own k-NN graph,
+then trains a GNN to classify fraud vs clean nodes.
 
-Node features (6-dim):
-  - total_correct, score_percentile
-  - n_similar_neighbors, avg_waa
+Node features (8-dim):
+  - normalized_score, score_percentile
+  - n_neighbors (from graph), avg_neighbor_sim
   - center_deviation, difficulty_gradient
+  - wrong_answer_concentration, speed_ratio (if timing)
 """
 
 from __future__ import annotations
@@ -49,10 +49,10 @@ class GNNFraudEngine(BaseEngine):
 
         # Try importing PyTorch and PyG
         try:
-            import torch
-            import torch.nn.functional as F
-            from torch_geometric.nn import SAGEConv
-            from torch_geometric.data import Data
+            import torch  # type: ignore
+            import torch.nn.functional as F  # type: ignore
+            from torch_geometric.nn import SAGEConv  # type: ignore[import-not-found]
+            from torch_geometric.data import Data  # type: ignore[import-not-found]
         except ImportError as e:
             logger.warning(f"PyTorch Geometric not available: {e}")
             return EngineOutput(
@@ -64,98 +64,74 @@ class GNNFraudEngine(BaseEngine):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"GNN engine using device: {device}")
 
-        # Get copy ring graph data from kwargs
-        copy_ring_data = kwargs.get("copy_ring_result", {})
-        graph_data = copy_ring_data.get("graph_data", {"nodes": [], "edges": []})
+        # ── STEP 1: Build similarity graph ──
+        self.report_progress(5, "Building answer-similarity graph")
 
-        if not graph_data.get("edges"):
-            logger.info("No E1 similarity graph — building k-NN graph from answer similarity")
-            self.report_progress(10, "Building k-NN similarity graph from answer data")
-
-            # Build a k-NN graph using answer similarity (top-k nearest neighbors)
-            # Sample if too many students
-            max_graph = min(n_students, 2000)
-            if n_students > max_graph:
-                sample_idx = np.random.choice(n_students, max_graph, replace=False)
-            else:
-                sample_idx = np.arange(n_students)
-
-            sampled_answers = answers[sample_idx]
-            # Compute pairwise Jaccard similarity using vectorized ops
-            # Use binary comparison (same answer = 1)
-            edges_src, edges_tgt = [], []
-            n_sample = len(sample_idx)
-            
-            # Find top-k neighbors via batch matching
-            k_neighbors = min(15, n_sample - 1)
-            # Random match rate for 4 options ≈ 0.25, so 0.35+ is meaningful  
-            sim_threshold = 0.35
-            for i in range(0, n_sample, 200):
-                batch_end = min(i + 200, n_sample)
-                batch = sampled_answers[i:batch_end]
-                # Match matrix: how many questions have same answer
-                matches = np.array([
-                    (sampled_answers == batch[j:j+1]).sum(axis=1) / n_questions
-                    for j in range(batch.shape[0])
-                ])
-                # For each student in batch, get top-k most similar
-                for j in range(matches.shape[0]):
-                    matches[j, i + j] = 0  # exclude self
-                    top_k = np.argsort(-matches[j])[:k_neighbors]
-                    for k_idx in top_k:
-                        if matches[j, k_idx] > sim_threshold:
-                            edges_src.extend([i + j, int(k_idx)])
-                            edges_tgt.extend([int(k_idx), i + j])
-
-            if not edges_src:
-                return EngineOutput(
-                    engine_name=self.engine_name,
-                    status="complete",
-                    result_data={"message": "No significant similarity found in answer data"},
-                    summary={"model": "GraphSAGE", "flagged": 0, "device": str(device)},
-                )
-
-            # Build PyG-compatible graph data
-            node_ids = [student_ids[idx] for idx in sample_idx]
-            id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
-            n_graph_nodes = len(node_ids)
-            edge_index_np = np.array([edges_src, edges_tgt])
-            # Deduplicate
-            unique_edges = np.unique(edge_index_np, axis=1)
-            edge_index = torch.tensor(unique_edges, dtype=torch.long)
-            graph_data = {"nodes": [{"id": nid} for nid in node_ids], "edges": []}
+        # Always build our own k-NN graph from raw answer data for reliability
+        max_graph = min(n_students, 2000)
+        rng = np.random.RandomState(42)
+        if n_students > max_graph:
+            sample_idx = rng.choice(n_students, max_graph, replace=False)
         else:
-            self.report_progress(10, "Building PyG graph from E1 similarity data")
+            sample_idx = np.arange(n_students)
 
-            # ── Build node mapping from E1 graph ──
-            node_ids = list(set(
-                [n["id"] for n in graph_data["nodes"]]
-            ))
-            id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
-            n_graph_nodes = len(node_ids)
+        sampled_answers = answers[sample_idx]
+        n_sample = len(sample_idx)
+        node_ids = [student_ids[idx] for idx in sample_idx]
 
-            if n_graph_nodes < 10:
-                return EngineOutput(
-                    engine_name=self.engine_name,
-                    status="complete",
-                    result_data={"message": f"Graph too small ({n_graph_nodes} nodes)"},
-                    summary={"model": "GraphSAGE", "flagged": 0, "device": str(device)},
-                )
+        # Compute pairwise answer-matching in batches
+        edges_src, edges_tgt, edge_weights = [], [], []
+        batch_size = 100
+        k_neighbors = min(20, n_sample - 1)
 
-            # ── Build edge index ──
-            edge_sources = []
-            edge_targets = []
-            for edge in graph_data["edges"]:
-                if edge["source"] in id_to_idx and edge["target"] in id_to_idx:
-                    s = id_to_idx[edge["source"]]
-                    t = id_to_idx[edge["target"]]
-                    edge_sources.extend([s, t])
-                    edge_targets.extend([t, s])
+        self.report_progress(10, f"Computing k-NN similarity for {n_sample} nodes")
 
-            edge_index = torch.tensor([edge_sources, edge_targets], dtype=torch.long)
+        for i in range(0, n_sample, batch_size):
+            batch_end = min(i + batch_size, n_sample)
+            batch = sampled_answers[i:batch_end]
+            # Vectorized: (batch_size, n_sample) match fractions
+            match_frac = np.array([
+                (sampled_answers == batch[j:j+1]).sum(axis=1) / n_questions
+                for j in range(batch.shape[0])
+            ])  # shape: (batch_size, n_sample)
 
-        # ── Build node features (6-dim) ──
-        self.report_progress(20, "Computing 6-dimensional node features")
+            for j in range(match_frac.shape[0]):
+                global_j = i + j
+                match_frac[j, global_j] = 0  # exclude self
+                top_k = np.argsort(-match_frac[j])[:k_neighbors]
+                for k_idx in top_k:
+                    sim = match_frac[j, int(k_idx)]
+                    if sim > 0.30:  # Low threshold to ensure dense graph
+                        edges_src.append(global_j)
+                        edges_tgt.append(int(k_idx))
+                        edge_weights.append(sim)
+
+            if i % 500 == 0 and i > 0:
+                pct = 10 + int(20 * i / n_sample)
+                self.report_progress(pct, f"Graph construction: {i}/{n_sample}")
+
+        if len(edges_src) < 20:
+            return EngineOutput(
+                engine_name=self.engine_name,
+                status="complete",
+                flagged_count=0,
+                result_data={"message": "Insufficient similarity edges for GNN training"},
+                summary={"model": "GraphSAGE", "flagged": 0, "device": str(device)},
+            )
+
+        # Make undirected + deduplicate
+        all_src = edges_src + edges_tgt
+        all_tgt = edges_tgt + edges_src
+        all_wt = edge_weights + edge_weights
+        edge_index = torch.tensor([all_src, all_tgt], dtype=torch.long)
+
+        id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+        n_graph_nodes = len(node_ids)
+
+        logger.info(f"GNN graph: {n_graph_nodes} nodes, {edge_index.shape[1]} edges")
+
+        # ── STEP 2: Compute 8-dim node features ──
+        self.report_progress(30, "Computing 8-dimensional node features")
 
         if answer_key is not None:
             correct_matrix = (answers == answer_key[np.newaxis, :])
@@ -164,69 +140,77 @@ class GNNFraudEngine(BaseEngine):
             scores = answers.sum(axis=1)
 
         national_mean = float(scores.mean())
-        national_std = float(scores.std())
+        national_std = max(float(scores.std()), 1e-6)
         percentiles = np.argsort(np.argsort(scores)) / n_students
 
         # Center means
         center_means = {}
         if center_ids:
             for i, cid in enumerate(center_ids):
-                center_means.setdefault(cid, []).append(int(scores[i]))
+                center_means.setdefault(cid, []).append(float(scores[i]))
             center_means = {k: np.mean(v) for k, v in center_means.items()}
 
-        # Difficulty gradients (Q4 - Q1 accuracy)
+        # Difficulty gradient per student (hard_acc - easy_acc)
+        gradients = np.zeros(n_students)
         if answer_key is not None:
             q_difficulty = 1.0 - correct_matrix.mean(axis=0)
-            quartile_bounds = np.percentile(q_difficulty, [25, 75])
-            easy_qs = q_difficulty <= quartile_bounds[0]
-            hard_qs = q_difficulty >= quartile_bounds[1]
-            if easy_qs.sum() > 0 and hard_qs.sum() > 0:
-                easy_acc = correct_matrix[:, easy_qs].mean(axis=1)
-                hard_acc = correct_matrix[:, hard_qs].mean(axis=1)
-                gradients = hard_acc - easy_acc
-            else:
-                gradients = np.zeros(n_students)
-        else:
-            gradients = np.zeros(n_students)
+            q25, q75 = np.percentile(q_difficulty, [25, 75])
+            easy_mask = q_difficulty <= q25
+            hard_mask = q_difficulty >= q75
+            if easy_mask.sum() > 0 and hard_mask.sum() > 0:
+                gradients = correct_matrix[:, hard_mask].mean(axis=1) - correct_matrix[:, easy_mask].mean(axis=1)
 
-        # Build feature matrix for graph nodes
-        features = np.zeros((n_graph_nodes, 6))
+        # Wrong answer concentration per student
+        wrong_concentration = np.zeros(n_students)
+        if answer_key is not None:
+            for i in range(n_students):
+                wrong_mask = answers[i] != answer_key
+                if wrong_mask.sum() > 0:
+                    wrong_ans = answers[i, wrong_mask]
+                    _, counts = np.unique(wrong_ans, return_counts=True)
+                    # Herfindahl index of wrong answers (high = concentrated = suspicious)
+                    freqs = counts / counts.sum()
+                    wrong_concentration[i] = float(np.sum(freqs ** 2))
+
+        # Speed ratio (if timing data)
+        speed_ratios = np.zeros(n_students)
+        if timing_data is not None:
+            median_times = np.median(timing_data, axis=0)
+            student_speed = (timing_data / (median_times[np.newaxis, :] + 1e-8)).mean(axis=1)
+            speed_ratios = np.clip(student_speed, 0, 5)
+
+        # Neighbor degree from our edge list
+        degree = np.zeros(n_graph_nodes)
+        avg_neighbor_sim = np.zeros(n_graph_nodes)
+        for s, t, w in zip(edges_src, edges_tgt, edge_weights):
+            degree[s] += 1
+            avg_neighbor_sim[s] += w
+        for i in range(n_graph_nodes):
+            if degree[i] > 0:
+                avg_neighbor_sim[i] /= degree[i]
+
+        # Build feature matrix (8 features)
+        features = np.zeros((n_graph_nodes, 8))
         student_id_to_idx = {sid: i for i, sid in enumerate(student_ids)}
-
-        # Compute neighbor statistics from graph
-        neighbor_counts = np.zeros(n_graph_nodes)
-        neighbor_waa = np.zeros(n_graph_nodes)
-        for node in graph_data["nodes"]:
-            if node["id"] in id_to_idx:
-                nidx = id_to_idx[node["id"]]
-                # Count edges
-                neighbor_counts[nidx] = sum(
-                    1 for e in graph_data["edges"]
-                    if e["source"] == node["id"] or e["target"] == node["id"]
-                )
-                # Average edge weight as WAA proxy
-                weights = [
-                    e["weight"] for e in graph_data["edges"]
-                    if e["source"] == node["id"] or e["target"] == node["id"]
-                ]
-                neighbor_waa[nidx] = float(np.mean(weights)) if weights else 0
 
         for graph_idx, nid in enumerate(node_ids):
             if nid in student_id_to_idx:
                 s_idx = student_id_to_idx[nid]
-                features[graph_idx, 0] = scores[s_idx] / n_questions  # normalized score
+                features[graph_idx, 0] = scores[s_idx] / n_questions
                 features[graph_idx, 1] = percentiles[s_idx]
-                features[graph_idx, 2] = neighbor_counts[graph_idx] / max(neighbor_counts.max(), 1)
-                features[graph_idx, 3] = neighbor_waa[graph_idx]
+                features[graph_idx, 2] = degree[graph_idx] / max(degree.max(), 1)
+                features[graph_idx, 3] = avg_neighbor_sim[graph_idx]
                 if center_ids and s_idx < len(center_ids):
                     cid = center_ids[s_idx]
-                    features[graph_idx, 4] = (scores[s_idx] - center_means.get(cid, national_mean)) / max(national_std, 1)
+                    features[graph_idx, 4] = (scores[s_idx] - center_means.get(cid, national_mean)) / national_std
                 features[graph_idx, 5] = gradients[s_idx]
+                features[graph_idx, 6] = wrong_concentration[s_idx]
+                features[graph_idx, 7] = speed_ratios[s_idx]
 
         x = torch.tensor(features, dtype=torch.float32)
 
-        # ── Labels (from ground truth) ──
-        self.report_progress(30, "Setting up training labels from ground truth")
+        # ── STEP 3: Labels (from ground truth or semi-supervised) ──
+        self.report_progress(35, "Setting up training labels")
 
         labels = torch.zeros(n_graph_nodes, dtype=torch.long)
         if ground_truth:
@@ -236,6 +220,9 @@ class GNNFraudEngine(BaseEngine):
                     if s_idx < len(student_ids):
                         fraud_student_set.add(student_ids[s_idx])
             for s_idx in ground_truth.get("leaked_students", []):
+                if s_idx < len(student_ids):
+                    fraud_student_set.add(student_ids[s_idx])
+            for s_idx in ground_truth.get("timing_cheaters", []):
                 if s_idx < len(student_ids):
                     fraud_student_set.add(student_ids[s_idx])
 
@@ -248,35 +235,41 @@ class GNNFraudEngine(BaseEngine):
         logger.info(f"GNN labels: {n_fraud} fraud, {n_clean} clean in graph")
 
         if n_fraud == 0:
-            # No ground truth labels — use unsupervised approach
-            logger.info("No ground truth — using degree-based heuristic for labels")
-            # High-degree nodes in similarity graph are likely fraud
-            degree_threshold = np.percentile(neighbor_counts, 80)
-            labels = torch.tensor(
-                (neighbor_counts > degree_threshold).astype(int), dtype=torch.long
+            # Semi-supervised: use high-degree + high-similarity as pseudo-labels
+            logger.info("No ground truth labels — using semi-supervised heuristic")
+            combined_score = (
+                0.4 * (degree / max(degree.max(), 1)) +
+                0.3 * avg_neighbor_sim +
+                0.3 * (1 - features[:, 0])  # low score = more suspicious
             )
+            threshold = np.percentile(combined_score, 85)
+            labels = torch.tensor((combined_score > threshold).astype(int), dtype=torch.long)
             n_fraud = int((labels == 1).sum())
             n_clean = int((labels == 0).sum())
 
-        # ── Train/val split ──
-        n_nodes = n_graph_nodes
-        perm = torch.randperm(n_nodes)
-        train_size = int(0.7 * n_nodes)
-        train_mask = torch.zeros(n_nodes, dtype=torch.bool)
-        val_mask = torch.zeros(n_nodes, dtype=torch.bool)
+        if n_fraud < 3:
+            return EngineOutput(
+                engine_name=self.engine_name,
+                status="complete",
+                flagged_count=0,
+                result_data={"message": f"Too few fraud labels ({n_fraud}) for training"},
+                summary={"model": "GraphSAGE", "flagged": 0, "device": str(device)},
+            )
+
+        # ── STEP 4: Train/val split ──
+        perm = torch.randperm(n_graph_nodes)
+        train_size = int(0.7 * n_graph_nodes)
+        train_mask = torch.zeros(n_graph_nodes, dtype=torch.bool)
+        val_mask = torch.zeros(n_graph_nodes, dtype=torch.bool)
         train_mask[perm[:train_size]] = True
         val_mask[perm[train_size:]] = True
 
-        # ── Build PyG Data ──
         data = Data(
-            x=x,
-            edge_index=edge_index,
-            y=labels,
-            train_mask=train_mask,
-            val_mask=val_mask,
+            x=x, edge_index=edge_index, y=labels,
+            train_mask=train_mask, val_mask=val_mask,
         ).to(device)
 
-        # ── Define GNN Model ──
+        # ── STEP 5: Define and train GNN ──
         class FraudGNN(torch.nn.Module):
             def __init__(self, in_channels, hidden=64, out_channels=2):
                 super().__init__()
@@ -294,22 +287,22 @@ class GNNFraudEngine(BaseEngine):
                 h = self.dropout(h)
                 return F.log_softmax(self.classifier(h), dim=1)
 
-        # ── Training ──
-        self.report_progress(40, "Training GraphSAGE model on CUDA")
+        self.report_progress(40, f"Training GraphSAGE on {device}")
 
-        model = FraudGNN(in_channels=6).to(device)
+        model = FraudGNN(in_channels=8).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
 
-        weight = torch.tensor([1.0, max(n_clean / max(n_fraud, 1), 1.0)]).to(device)
+        # Class weights to handle imbalance
+        weight = torch.tensor([1.0, max(n_clean / max(n_fraud, 1), 2.0)]).to(device)
         criterion = torch.nn.NLLLoss(weight=weight)
 
         best_f1 = 0.0
         best_state = None
-        patience = 15
+        patience = 20
         wait = 0
         final_epoch = 0
 
-        for epoch in range(100):
+        for epoch in range(150):
             model.train()
             optimizer.zero_grad()
             out = model(data.x, data.edge_index)
@@ -340,13 +333,13 @@ class GNNFraudEngine(BaseEngine):
                         final_epoch = epoch
                         break
 
-            if epoch % 10 == 0:
-                pct = 40 + int(40 * epoch / 100)
-                self.report_progress(pct, f"GNN training epoch {epoch}/100 — F1: {f1:.3f}")
+            if epoch % 15 == 0:
+                pct = 40 + int(40 * epoch / 150)
+                self.report_progress(pct, f"GNN epoch {epoch}/150 — F1: {f1:.3f}, loss: {loss:.3f}")
 
             final_epoch = epoch
 
-        # ── Inference ──
+        # ── STEP 6: Inference ──
         self.report_progress(85, "Running GNN inference on all nodes")
 
         if best_state:
@@ -361,7 +354,8 @@ class GNNFraudEngine(BaseEngine):
         flagged_mask = fraud_probs > 0.5
         flagged_ids = [node_ids[i] for i in range(n_graph_nodes) if flagged_mask[i]]
 
-        # Find novel detections (flagged by GNN but not in copy ring clusters)
+        # Find novel detections (not in copy ring)
+        copy_ring_data = kwargs.get("copy_ring_result", {})
         copy_ring_flagged = set()
         for cluster in copy_ring_data.get("clusters", []):
             copy_ring_flagged.update(cluster.get("students", []))
@@ -378,8 +372,8 @@ class GNNFraudEngine(BaseEngine):
                 "features": {
                     "score": round(float(features[i, 0]), 3),
                     "percentile": round(float(features[i, 1]), 3),
-                    "neighbors": round(float(features[i, 2]), 3),
-                    "avg_waa": round(float(features[i, 3]), 3),
+                    "degree": round(float(features[i, 2]), 3),
+                    "avg_sim": round(float(features[i, 3]), 3),
                 },
             })
 
@@ -388,20 +382,28 @@ class GNNFraudEngine(BaseEngine):
             for i in range(n_graph_nodes)
         }
 
+        self.report_progress(100, f"GNN complete — {len(flagged_ids)} flagged, F1: {best_f1:.3f}")
+
         return EngineOutput(
             engine_name=self.engine_name,
             flagged_count=len(flagged_ids),
             flagged_student_ids=flagged_ids,
             result_data={
-                "model": f"GraphSAGE (2-layer, 64→32→2)",
+                "model": "GraphSAGE (2-layer, 64→32→2, 8-dim features)",
                 "training_epochs": final_epoch + 1,
                 "validation_f1": round(best_f1, 3),
                 "total_flagged": len(flagged_ids),
                 "novel_detections": len(novel_detections),
+                "graph_stats": {
+                    "nodes": n_graph_nodes,
+                    "edges": edge_index.shape[1],
+                    "avg_degree": round(float(degree.mean()), 1),
+                },
                 "fraud_probabilities": fraud_probs_dict,
                 "enhanced_graph_data": {
-                    "nodes": enhanced_nodes,
-                    "edges": graph_data["edges"],
+                    "nodes": enhanced_nodes[:500],
+                    "edges": [{"source": node_ids[s], "target": node_ids[t]}
+                              for s, t in zip(edges_src[:1000], edges_tgt[:1000])],
                 },
                 "device": str(device),
             },
