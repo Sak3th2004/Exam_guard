@@ -7,6 +7,15 @@ export const api = {
     return res.json();
   },
 
+  async uploadCSV(file, config = {}) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('config', JSON.stringify(config));
+    const res = await fetch(`${API_BASE}/analyses`, { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(`Upload failed: ${res.statusText}`);
+    return res.json();
+  },
+
   async generateData(config = {}) {
     const res = await fetch(`${API_BASE}/generate`, {
       method: 'POST',
