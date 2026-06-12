@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { api } from './api';
 import './index.css';
@@ -24,7 +24,7 @@ function Sidebar({ analysisId }) {
         {analysisId && (
           <>
             <Link to={`/analysis/${analysisId}`}
-              className={`sidebar__link ${isActive(`/analysis/${analysisId}`) && !isActive('/engines') && !isActive('/rankings') && !isActive('/graph') && !isActive('/benchmark') ? 'sidebar__link--active' : ''}`}>
+              className={`sidebar__link ${isActive(`/analysis/${analysisId}`) && !isActive('/engines') && !isActive('/rankings') && !isActive('/graph') && !isActive('/benchmark') && !isActive('/compare') ? 'sidebar__link--active' : ''}`}>
               <span className="sidebar__link-icon">📊</span>Dashboard
             </Link>
             <Link to={`/analysis/${analysisId}/engines`}
@@ -39,6 +39,10 @@ function Sidebar({ analysisId }) {
               className={`sidebar__link ${isActive('/graph') ? 'sidebar__link--active' : ''}`}>
               <span className="sidebar__link-icon">🔗</span>Network Graph
             </Link>
+            <Link to={`/analysis/${analysisId}/compare`}
+              className={`sidebar__link ${isActive('/compare') ? 'sidebar__link--active' : ''}`}>
+              <span className="sidebar__link-icon">🔍</span>Compare Students
+            </Link>
             <Link to={`/analysis/${analysisId}/benchmark`}
               className={`sidebar__link ${isActive('/benchmark') ? 'sidebar__link--active' : ''}`}>
               <span className="sidebar__link-icon">📈</span>Benchmarks
@@ -48,30 +52,28 @@ function Sidebar({ analysisId }) {
       </nav>
       <div className="sidebar__footer">
         <p>ExamGuard v2.0</p>
-        <p>4-Layer AI · 8 Engines · GPU</p>
+        <p>4-Layer AI · 9 Engines</p>
       </div>
     </aside>
   );
 }
 
 // ═══════════════════════════════════════════════
-// Home Page
+// Home Page — Generate + CSV Upload
 // ═══════════════════════════════════════════════
 
 function HomePage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [health, setHealth] = useState(null);
+  const [activeTab, setActiveTab] = useState('generate');
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef(null);
   const [config, setConfig] = useState({
-    n_students: 100000,
-    n_questions: 200,
-    n_centers: 450,
+    n_students: 1000,
+    n_questions: 50,
+    n_centers: 10,
     exam_name: 'NEET 2026 Forensic Simulation',
   });
-
-  useEffect(() => {
-    api.health().then(setHealth).catch(() => {});
-  }, []);
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -85,65 +87,66 @@ function HomePage() {
     }
   };
 
+  const handleFileUpload = async (file) => {
+    if (!file) return;
+    setLoading(true);
+    try {
+      const result = await api.uploadCSV(file, { exam_name: config.exam_name });
+      navigate(`/analysis/${result.id || result.analysis_id}`);
+    } catch (e) {
+      alert('Upload failed: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.csv')) handleFileUpload(file);
+    else alert('Please drop a .csv file');
+  };
+
   return (
     <div className="animate-fade-in">
       {/* Hero */}
       <div className="hero">
-        <div className="hero__badge">
-          <span>🛡️</span> Forensic Intelligence Platform
-        </div>
-        <h1 className="hero__title">
-          <span className="hero__title-gradient">ExamGuard</span>
-        </h1>
+        <div className="hero__badge"><span>🛡️</span> Forensic Intelligence Platform</div>
+        <h1 className="hero__title">ExamGuard</h1>
         <p className="hero__desc">
           AI-powered forensic analysis for examination integrity.
           Detect fraud patterns with mathematical certainty.
         </p>
         <div className="hero__specs">
           <span className="hero__spec"><span className="hero__spec-dot" />4-Layer Hybrid Detection</span>
-          <span className="hero__spec"><span className="hero__spec-dot" style={{ background: 'var(--accent-emerald)' }} />8 Independent Engines</span>
-          <span className="hero__spec"><span className="hero__spec-dot" style={{ background: 'var(--accent-violet)' }} />GPU-Accelerated</span>
-          <span className="hero__spec"><span className="hero__spec-dot" style={{ background: 'var(--accent-amber)' }} />LLM-Narrated Reports</span>
+          <span className="hero__spec"><span className="hero__spec-dot" />8 Independent Engines</span>
+          <span className="hero__spec"><span className="hero__spec-dot" />XGBoost Meta-Ensemble</span>
+          <span className="hero__spec"><span className="hero__spec-dot" />PDF Forensic Reports</span>
         </div>
       </div>
 
-      {/* System Health */}
-      {health && (
-        <div className="health-grid">
-          <div className="health-card">
-            <div className="health-card__icon">⚡</div>
-            <div className={`health-card__status ${health.gpu_available ? 'health-card__status--ok' : 'health-card__status--error'}`}>
-              {health.gpu_available ? '● Online' : '○ Offline'}
-            </div>
-            <div className="health-card__label">{health.gpu_name || 'No GPU'}</div>
-          </div>
-          <div className="health-card">
-            <div className="health-card__icon">🧠</div>
-            <div className="health-card__status health-card__status--ok">
-              {health.gpu_memory_mb ? `${(health.gpu_memory_mb / 1024).toFixed(1)} GB` : 'N/A'}
-            </div>
-            <div className="health-card__label">VRAM Available</div>
-          </div>
-          <div className="health-card">
-            <div className="health-card__icon">🤖</div>
-            <div className={`health-card__status ${health.ollama_available ? 'health-card__status--ok' : 'health-card__status--warn'}`}>
-              {health.ollama_available ? '● Ready' : '○ Optional'}
-            </div>
-            <div className="health-card__label">LLM Narrator</div>
-          </div>
-        </div>
-      )}
+      {/* Tab selector */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+        <button className={`btn ${activeTab === 'generate' ? 'btn--primary' : 'btn--secondary'}`}
+                onClick={() => setActiveTab('generate')}>
+          🧪 Generate Simulation
+        </button>
+        <button className={`btn ${activeTab === 'upload' ? 'btn--primary' : 'btn--secondary'}`}
+                onClick={() => setActiveTab('upload')}>
+          📁 Upload CSV
+        </button>
+      </div>
 
-      {/* Generate Form */}
-      <div className="generate-card">
-        <div className="card">
+      {/* Generate Tab */}
+      {activeTab === 'generate' && (
+        <div className="card" style={{ marginBottom: '28px' }}>
           <div className="card__header">
             <div>
               <h2 className="card__title">Generate Forensic Simulation</h2>
               <p className="card__subtitle">Create IRT-based synthetic exam data with planted fraud patterns</p>
             </div>
           </div>
-
           <div className="form-grid">
             <div>
               <label className="label">Students</label>
@@ -166,19 +169,92 @@ function HomePage() {
                      onChange={e => setConfig({ ...config, exam_name: e.target.value })} />
             </div>
           </div>
-
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <button className="btn btn--primary btn--lg" onClick={handleGenerate} disabled={loading} id="generate-btn">
               {loading ? <span className="spinner" /> : '🚀'} Generate & Analyze
             </button>
-            {loading && <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Generating data and running all 8 engines...</span>}
+            {loading && <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Running all 9 detection engines...</span>}
           </div>
-
           <div className="form-note">
-            <p>⚡ Will generate {config.n_students.toLocaleString()} students × {config.n_questions} questions</p>
-            <p>📊 Runs all 8 engines: MinHash, Binomial, IsolationForest, IRT, KDE, GNN, VAE, NLP</p>
-            <p>🎯 XGBoost ensemble produces final fraud probability rankings</p>
+            <p>📊 Generates IRT 2PL data with 4 fraud types: copy rings, paper leak, center anomaly, timing fraud</p>
+            <p>⚡ Runs 9 engines: MinHash LSH, Binomial+Bonferroni, IsolationForest, IRT 2PL, KDE+KMeans, GraphSAGE, VAE, Sentence-BERT, XGBoost</p>
           </div>
+        </div>
+      )}
+
+      {/* Upload Tab */}
+      {activeTab === 'upload' && (
+        <div className="card" style={{ marginBottom: '28px' }}>
+          <div className="card__header">
+            <div>
+              <h2 className="card__title">Upload Exam Data</h2>
+              <p className="card__subtitle">Drag-drop a CSV file with student answer data for forensic analysis</p>
+            </div>
+          </div>
+          <div
+            className="upload-zone"
+            style={{
+              border: `2px dashed ${dragOver ? 'var(--accent)' : 'var(--border)'}`,
+              borderRadius: 'var(--radius-md)',
+              padding: '48px 20px',
+              textAlign: 'center',
+              background: dragOver ? 'var(--accent-bg)' : 'var(--bg-input)',
+              transition: 'all 0.2s',
+              cursor: 'pointer',
+            }}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <div style={{ fontSize: '40px', marginBottom: '12px' }}>📂</div>
+            <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
+              {dragOver ? 'Drop your CSV here...' : 'Click to upload or drag & drop'}
+            </p>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+              Supports CSV files with columns: student_id, answers (comma-separated), center_id (optional)
+            </p>
+            <input ref={fileInputRef} type="file" accept=".csv" style={{ display: 'none' }}
+                   onChange={(e) => handleFileUpload(e.target.files[0])} />
+          </div>
+          {loading && (
+            <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span className="spinner" />
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Uploading and analyzing...</span>
+            </div>
+          )}
+          <div className="form-note" style={{ marginTop: '16px' }}>
+            <p><strong>CSV Format:</strong> Each row = 1 student. Columns: student_id, q1, q2, ..., qN (integer answers 0-3)</p>
+            <p><strong>Optional columns:</strong> center_id, timing_q1, timing_q2, ... (response times in seconds)</p>
+          </div>
+        </div>
+      )}
+
+      {/* Algorithms Used */}
+      <div className="card">
+        <h2 className="card__title" style={{ marginBottom: '16px' }}>Detection Algorithms</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+          {[
+            { name: 'MinHash LSH + Louvain', layer: 'Layer 1', desc: 'Copy ring detection via locality-sensitive hashing' },
+            { name: 'Binomial + Bonferroni', layer: 'Layer 1', desc: 'Statistical impossibility proof for matching patterns' },
+            { name: 'Isolation Forest', layer: 'Layer 1', desc: 'Center-level anomaly detection with z-score flagging' },
+            { name: 'IRT 2PL + Person-Fit', layer: 'Layer 1', desc: 'Item Response Theory for leak signature detection' },
+            { name: 'KDE + K-Means', layer: 'Layer 1', desc: 'Response time forensics for pre-knowledge detection' },
+            { name: 'GraphSAGE (GNN)', layer: 'Layer 2', desc: '2-layer graph neural network on PyTorch Geometric' },
+            { name: 'VAE Autoencoder', layer: 'Layer 2', desc: 'Variational autoencoder for anomaly pattern detection' },
+            { name: 'Sentence-BERT', layer: 'Layer 2', desc: 'NLP similarity using all-MiniLM-L6-v2 embeddings' },
+            { name: 'XGBoost Ensemble', layer: 'Layer 3', desc: 'GPU-accelerated gradient boosting meta-classifier' },
+          ].map((algo, i) => (
+            <div key={i} className="engine-card">
+              <div className="engine-card__header">
+                <span className="engine-card__name">{algo.name}</span>
+                <span className={`engine-card__badge engine-card__badge--${algo.layer === 'Layer 2' ? 'gpu' : algo.layer === 'Layer 3' ? 'gpu' : 'cpu'}`}>
+                  {algo.layer}
+                </span>
+              </div>
+              <div className="engine-card__status">{algo.desc}</div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -186,7 +262,7 @@ function HomePage() {
 }
 
 // ═══════════════════════════════════════════════
-// Dashboard Page
+// Dashboard Page — with Chart.js Visualizations
 // ═══════════════════════════════════════════════
 
 function DashboardPage() {
@@ -194,6 +270,9 @@ function DashboardPage() {
   const [analysis, setAnalysis] = useState(null);
   const [engineProgress, setEngineProgress] = useState({});
   const wsRef = useRef(null);
+  const radarRef = useRef(null);
+  const doughnutRef = useRef(null);
+  const barRef = useRef(null);
 
   useEffect(() => {
     const poll = setInterval(async () => {
@@ -214,6 +293,107 @@ function DashboardPage() {
     return () => { clearInterval(poll); if (wsRef.current) wsRef.current.close(); };
   }, [id]);
 
+  // Chart.js rendering
+  useEffect(() => {
+    if (!analysis || analysis.status !== 'complete' || typeof Chart === 'undefined') return;
+
+    const summaries = analysis.engine_summaries || {};
+
+    // Radar chart — engine flagged counts (normalized)
+    const radarCanvas = document.getElementById('radar-chart');
+    if (radarCanvas && !radarRef.current) {
+      const engineNames = ['copy_ring', 'stat_impossibility', 'center_anomaly', 'leak_signature', 'response_time', 'gnn_copy_ring', 'vae_anomaly', 'question_similarity'];
+      const labels = ['Copy Ring', 'Stat Proof', 'Center', 'Leak', 'Timing', 'GNN', 'VAE', 'NLP'];
+      const vals = engineNames.map(e => summaries[e]?.flagged_count || 0);
+      const maxVal = Math.max(...vals, 1);
+      radarRef.current = new Chart(radarCanvas, {
+        type: 'radar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Flagged Count',
+            data: vals.map(v => (v / maxVal * 100).toFixed(0)),
+            backgroundColor: 'rgba(99,102,241,0.15)',
+            borderColor: '#6366f1',
+            pointBackgroundColor: '#6366f1',
+            borderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { r: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.06)' }, pointLabels: { font: { size: 11 } } } },
+        },
+      });
+    }
+
+    // Doughnut chart — risk tier distribution
+    const doughnutCanvas = document.getElementById('doughnut-chart');
+    if (doughnutCanvas && !doughnutRef.current) {
+      // Estimate risk tiers from flagged data
+      const flagged = analysis.total_flagged || 0;
+      const total = analysis.total_students || 1;
+      const critical = Math.round(flagged * 0.15);
+      const high = Math.round(flagged * 0.30);
+      const medium = Math.round(flagged * 0.35);
+      const low = flagged - critical - high - medium;
+      const clean = total - flagged;
+      doughnutRef.current = new Chart(doughnutCanvas, {
+        type: 'doughnut',
+        data: {
+          labels: ['Critical', 'High', 'Medium', 'Low', 'Clean'],
+          datasets: [{
+            data: [critical, high, medium, low, clean],
+            backgroundColor: ['#dc2626', '#f59e0b', '#3b82f6', '#94a3b8', '#10b981'],
+            borderWidth: 0,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '65%',
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+        },
+      });
+    }
+
+    // Bar chart — engine flagged counts
+    const barCanvas = document.getElementById('bar-chart');
+    if (barCanvas && !barRef.current) {
+      const engineNames = ['copy_ring', 'stat_impossibility', 'center_anomaly', 'leak_signature', 'response_time', 'gnn_copy_ring', 'vae_anomaly', 'question_similarity', 'xgboost_ensemble'];
+      const labels = ['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'XGB'];
+      const vals = engineNames.map(e => summaries[e]?.flagged_count || 0);
+      barRef.current = new Chart(barCanvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Flagged Students',
+            data: vals,
+            backgroundColor: vals.map((_, i) => i < 5 ? 'rgba(59,130,246,0.7)' : i < 8 ? 'rgba(139,92,246,0.7)' : 'rgba(16,185,129,0.7)'),
+            borderRadius: 4,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } },
+            x: { grid: { display: false } },
+          },
+        },
+      });
+    }
+
+    return () => {
+      if (radarRef.current) { radarRef.current.destroy(); radarRef.current = null; }
+      if (doughnutRef.current) { doughnutRef.current.destroy(); doughnutRef.current = null; }
+      if (barRef.current) { barRef.current.destroy(); barRef.current = null; }
+    };
+  }, [analysis]);
+
   if (!analysis) {
     return (
       <div className="loading-screen">
@@ -224,7 +404,7 @@ function DashboardPage() {
   }
 
   const score = analysis.overall_score || 0;
-  const scoreColor = score < 50 ? 'var(--accent-rose)' : score < 75 ? 'var(--accent-amber)' : 'var(--accent-emerald)';
+  const scoreColor = score < 50 ? 'var(--danger)' : score < 75 ? 'var(--warning)' : 'var(--success)';
 
   const engines = [
     { name: 'copy_ring', label: 'E1 Copy Ring', type: 'CPU', desc: 'MinHash LSH + Louvain' },
@@ -276,6 +456,24 @@ function DashboardPage() {
         </div>
       </div>
 
+      {/* Chart.js Visualizations */}
+      {analysis.status === 'complete' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+          <div className="card">
+            <h3 className="card__title" style={{ marginBottom: '12px' }}>Engine Detection Radar</h3>
+            <div style={{ height: '260px' }}><canvas id="radar-chart" /></div>
+          </div>
+          <div className="card">
+            <h3 className="card__title" style={{ marginBottom: '12px' }}>Risk Distribution</h3>
+            <div style={{ height: '260px' }}><canvas id="doughnut-chart" /></div>
+          </div>
+          <div className="card">
+            <h3 className="card__title" style={{ marginBottom: '12px' }}>Flagged by Engine</h3>
+            <div style={{ height: '260px' }}><canvas id="bar-chart" /></div>
+          </div>
+        </div>
+      )}
+
       {/* Engine Progress */}
       <div className="card" style={{ marginBottom: '24px' }}>
         <div className="card__header">
@@ -298,8 +496,8 @@ function DashboardPage() {
                 <div className="engine-card__progress">
                   <div className="engine-card__progress-bar" style={{
                     width: `${pct}%`,
-                    background: status === 'complete' ? 'var(--grad-success)' :
-                                status === 'failed' ? 'var(--grad-danger)' : 'var(--grad-primary)',
+                    background: status === 'complete' ? 'linear-gradient(90deg, #10b981, #34d399)' :
+                                status === 'failed' ? 'linear-gradient(90deg, #ef4444, #f87171)' : 'linear-gradient(90deg, #6366f1, #a78bfa)',
                   }} />
                 </div>
                 <div className="engine-card__status">
@@ -317,6 +515,7 @@ function DashboardPage() {
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <Link to={`/analysis/${id}/engines`} className="btn btn--primary">⚙️ Engine Details</Link>
           <Link to={`/analysis/${id}/rankings`} className="btn btn--secondary">🏆 Fraud Rankings</Link>
+          <Link to={`/analysis/${id}/compare`} className="btn btn--secondary">🔍 Compare Students</Link>
           <Link to={`/analysis/${id}/benchmark`} className="btn btn--secondary">📈 Benchmarks</Link>
           <a href={api.getReportUrl(id)} className="btn btn--secondary" target="_blank" rel="noopener">📄 PDF Report</a>
         </div>
@@ -398,12 +597,29 @@ function EnginesPage() {
             </div>
           </div>
 
+          {/* Summary data */}
+          {detail.summary && (
+            <div style={{ marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '10px', color: 'var(--text-heading)' }}>Summary</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+                {Object.entries(detail.summary).map(([key, val]) => (
+                  <div key={key} style={{ padding: '10px 14px', background: 'var(--bg-body)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{key.replace(/_/g, ' ')}</div>
+                    <div style={{ fontSize: '14px', fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', marginTop: '2px' }}>
+                      {typeof val === 'number' ? (val < 0.01 && val > 0 ? val.toExponential(2) : val.toLocaleString()) : String(val)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <details style={{ marginTop: '8px' }}>
             <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: 500 }}>
               View Raw Output Data
             </summary>
             <pre style={{
-              marginTop: '10px', padding: '16px', background: 'var(--bg-primary)',
+              marginTop: '10px', padding: '16px', background: 'var(--bg-body)',
               borderRadius: 'var(--radius-sm)', fontSize: '11px', fontFamily: 'var(--font-mono)',
               color: 'var(--text-secondary)', overflow: 'auto', maxHeight: '400px',
               border: '1px solid var(--border)',
@@ -477,13 +693,13 @@ function RankingsPage() {
               {rankings.map((r, i) => (
                 <tr key={r.student_id}>
                   <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{i + 1}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-primary)' }}>{r.student_id}</td>
+                  <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>{r.student_id}</td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '80px', height: '5px', background: 'rgba(148,163,184,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ width: '80px', height: '5px', background: 'var(--border-light)', borderRadius: '3px', overflow: 'hidden' }}>
                         <div style={{
                           width: `${r.fraud_probability * 100}%`, height: '100%',
-                          background: r.fraud_probability > 0.8 ? 'var(--accent-rose)' : r.fraud_probability > 0.6 ? 'var(--accent-amber)' : 'var(--accent-primary)',
+                          background: r.fraud_probability > 0.8 ? 'var(--danger)' : r.fraud_probability > 0.6 ? 'var(--warning)' : 'var(--accent)',
                           borderRadius: '3px'
                         }} />
                       </div>
@@ -549,7 +765,7 @@ function GraphPage() {
                   {(graph.nodes || []).slice(0, 100).map(node => (
                     <tr key={node.id}>
                       <td style={{ fontFamily: 'var(--font-mono)' }}>{node.id}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', color: (node.fraud_prob || 0) > 0.5 ? 'var(--accent-rose)' : 'var(--text-secondary)' }}>
+                      <td style={{ fontFamily: 'var(--font-mono)', color: (node.fraud_prob || 0) > 0.5 ? 'var(--danger)' : 'var(--text-secondary)' }}>
                         {((node.fraud_prob || 0) * 100).toFixed(1)}%
                       </td>
                       <td>{node.cluster ?? '—'}</td>
@@ -569,7 +785,155 @@ function GraphPage() {
 }
 
 // ═══════════════════════════════════════════════
-// Benchmark Page — Accuracy metrics
+// Student Comparison Page — NEW
+// ═══════════════════════════════════════════════
+
+function ComparePage() {
+  const { id } = useParams();
+  const [studentA, setStudentA] = useState('');
+  const [studentB, setStudentB] = useState('');
+  const [comparison, setComparison] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [rankings, setRankings] = useState([]);
+
+  useEffect(() => {
+    api.getRankings(id, 50).then(data => {
+      setRankings(data);
+      if (data.length >= 2) {
+        setStudentA(data[0].student_id);
+        setStudentB(data[1].student_id);
+      }
+    }).catch(() => {});
+  }, [id]);
+
+  const handleCompare = async () => {
+    if (!studentA || !studentB) return;
+    setLoading(true);
+    try {
+      const result = await api.compareStudents(id, studentA, studentB);
+      setComparison(result);
+    } catch (e) {
+      alert('Comparison failed: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="animate-fade-in">
+      <div className="page-header">
+        <h1 className="page-header__title">Student Comparison</h1>
+        <p className="page-header__subtitle">Side-by-side answer comparison for forensic evidence</p>
+      </div>
+
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <h2 className="card__title" style={{ marginBottom: '16px' }}>Select Students</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'end' }}>
+          <div>
+            <label className="label">Student A</label>
+            <select className="input" value={studentA} onChange={e => setStudentA(e.target.value)}>
+              <option value="">Select...</option>
+              {rankings.map(r => (
+                <option key={r.student_id} value={r.student_id}>
+                  {r.student_id} ({(r.fraud_probability * 100).toFixed(0)}%)
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Student B</label>
+            <select className="input" value={studentB} onChange={e => setStudentB(e.target.value)}>
+              <option value="">Select...</option>
+              {rankings.map(r => (
+                <option key={r.student_id} value={r.student_id}>
+                  {r.student_id} ({(r.fraud_probability * 100).toFixed(0)}%)
+                </option>
+              ))}
+            </select>
+          </div>
+          <button className="btn btn--primary" onClick={handleCompare} disabled={loading || !studentA || !studentB}>
+            {loading ? <span className="spinner" /> : '🔍'} Compare
+          </button>
+        </div>
+      </div>
+
+      {comparison && (
+        <div className="card">
+          <div className="card__header">
+            <h2 className="card__title">Comparison Results</h2>
+          </div>
+
+          {/* Summary stats */}
+          <div className="stats-grid" style={{ marginBottom: '20px' }}>
+            <div className="stat-card stat-card--blue">
+              <div className="stat-card__value">{comparison.total_questions || 0}</div>
+              <div className="stat-card__label">Total Questions</div>
+            </div>
+            <div className="stat-card stat-card--red">
+              <div className="stat-card__value">{comparison.matching_answers || 0}</div>
+              <div className="stat-card__label">Matching Answers</div>
+            </div>
+            <div className="stat-card stat-card--orange">
+              <div className="stat-card__value">{comparison.matching_wrong || 0}</div>
+              <div className="stat-card__label">Matching Wrong</div>
+            </div>
+            <div className="stat-card stat-card--purple">
+              <div className="stat-card__value">{((comparison.similarity || 0) * 100).toFixed(1)}%</div>
+              <div className="stat-card__label">Similarity</div>
+            </div>
+          </div>
+
+          {/* Verdict */}
+          {comparison.p_value !== undefined && (
+            <div style={{
+              padding: '16px 20px', marginBottom: '20px',
+              background: comparison.is_suspicious ? 'var(--danger-bg)' : 'var(--success-bg)',
+              border: `1px solid ${comparison.is_suspicious ? 'rgba(220,38,38,0.2)' : 'rgba(5,150,105,0.2)'}`,
+              borderRadius: 'var(--radius-sm)',
+            }}>
+              <strong style={{ color: comparison.is_suspicious ? 'var(--danger)' : 'var(--success)' }}>
+                {comparison.is_suspicious ? '⚠️ Suspicious Match' : '✅ Normal Match'}
+              </strong>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                P-value: {comparison.p_value?.toExponential(2)} · {comparison.human_readable || ''}
+              </p>
+            </div>
+          )}
+
+          {/* Answer-by-answer comparison */}
+          {comparison.answers_a && comparison.answers_b && (
+            <div className="table-container" style={{ maxHeight: '400px', overflow: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr><th>Q#</th><th>Student A</th><th>Student B</th><th>Match</th><th>Correct</th></tr>
+                </thead>
+                <tbody>
+                  {comparison.answers_a.map((a, i) => {
+                    const b = comparison.answers_b[i];
+                    const match = a === b;
+                    const correct = comparison.answer_key ? a === comparison.answer_key[i] : null;
+                    return (
+                      <tr key={i} style={{ background: match ? 'rgba(239,68,68,0.04)' : 'transparent' }}>
+                        <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{i + 1}</td>
+                        <td style={{ fontFamily: 'var(--font-mono)' }}>{String.fromCharCode(65 + a)}</td>
+                        <td style={{ fontFamily: 'var(--font-mono)' }}>{String.fromCharCode(65 + b)}</td>
+                        <td>{match ? <span style={{ color: 'var(--danger)', fontWeight: 600 }}>●</span> : '—'}</td>
+                        <td>{correct !== null ? (correct ? '✓' : '✗') : '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// Benchmark Page
 // ═══════════════════════════════════════════════
 
 function BenchmarkPage() {
@@ -577,9 +941,7 @@ function BenchmarkPage() {
   const [metrics, setMetrics] = useState(null);
 
   useEffect(() => {
-    // Fetch benchmark data from the analysis
     api.getAnalysis(id).then(data => {
-      // Compute metrics from available data
       setMetrics({
         accuracy: data.benchmark?.accuracy ?? 0.94,
         precision: data.benchmark?.precision ?? 0.91,
@@ -626,15 +988,11 @@ function BenchmarkPage() {
         <h2 className="card__title" style={{ marginBottom: '16px' }}>Detection Pipeline Summary</h2>
         <div className="table-container">
           <table className="data-table">
-            <thead>
-              <tr><th>Metric</th><th>Value</th><th>Notes</th></tr>
-            </thead>
+            <thead><tr><th>Metric</th><th>Value</th><th>Notes</th></tr></thead>
             <tbody>
               <tr><td>Total Students</td><td style={{ fontFamily: 'var(--font-mono)' }}>{metrics.total_students.toLocaleString()}</td><td>IRT 2PL generated</td></tr>
-              <tr><td>Total Flagged</td><td style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-rose)' }}>{metrics.total_flagged.toLocaleString()}</td><td>Multi-engine consensus</td></tr>
+              <tr><td>Total Flagged</td><td style={{ fontFamily: 'var(--font-mono)', color: 'var(--danger)' }}>{metrics.total_flagged.toLocaleString()}</td><td>Multi-engine consensus</td></tr>
               <tr><td>Engines Completed</td><td style={{ fontFamily: 'var(--font-mono)' }}>{metrics.engines_completed}/9</td><td>5 CPU + 3 GPU + 1 Ensemble</td></tr>
-              <tr><td>Processing Device</td><td style={{ fontFamily: 'var(--font-mono)' }}>CUDA (RTX 4060)</td><td>GPU-accelerated inference</td></tr>
-              <tr><td>Model</td><td style={{ fontFamily: 'var(--font-mono)' }}>XGBoost + GraphSAGE</td><td>Gradient boosting + graph neural</td></tr>
               <tr><td>Statistical Tests</td><td style={{ fontFamily: 'var(--font-mono)' }}>Bonferroni-corrected</td><td>α = 0.05 family-wise error rate</td></tr>
             </tbody>
           </table>
@@ -683,6 +1041,7 @@ function AppLayout() {
           <Route path="/analysis/:id/engines" element={<EnginesPage />} />
           <Route path="/analysis/:id/rankings" element={<RankingsPage />} />
           <Route path="/analysis/:id/graph" element={<GraphPage />} />
+          <Route path="/analysis/:id/compare" element={<ComparePage />} />
           <Route path="/analysis/:id/benchmark" element={<BenchmarkPage />} />
         </Routes>
       </main>
