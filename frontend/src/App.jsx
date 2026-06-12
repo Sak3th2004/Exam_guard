@@ -302,8 +302,8 @@ function DashboardPage() {
     // Radar chart — engine flagged counts (normalized)
     const radarCanvas = document.getElementById('radar-chart');
     if (radarCanvas && !radarRef.current) {
-      const engineNames = ['copy_ring', 'stat_impossibility', 'center_anomaly', 'leak_signature', 'response_time', 'gnn_copy_ring', 'vae_anomaly', 'question_similarity'];
-      const labels = ['Copy Ring', 'Stat Proof', 'Center', 'Leak', 'Timing', 'GNN', 'VAE', 'NLP'];
+      const engineNames = ['copy_ring', 'stat_impossibility', 'center_anomaly', 'leak_signature', 'response_time', 'gnn_copy_ring', 'vae_anomaly', 'question_similarity', 'benford_law'];
+      const labels = ['Copy Ring', 'Stat Proof', 'Center', 'Leak', 'Timing', 'GNN', 'VAE', 'NLP', 'Benford'];
       const vals = engineNames.map(e => summaries[e]?.flagged_count || 0);
       const maxVal = Math.max(...vals, 1);
       radarRef.current = new Chart(radarCanvas, {
@@ -361,8 +361,8 @@ function DashboardPage() {
     // Bar chart — engine flagged counts
     const barCanvas = document.getElementById('bar-chart');
     if (barCanvas && !barRef.current) {
-      const engineNames = ['copy_ring', 'stat_impossibility', 'center_anomaly', 'leak_signature', 'response_time', 'gnn_copy_ring', 'vae_anomaly', 'question_similarity', 'xgboost_ensemble'];
-      const labels = ['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'XGB'];
+      const engineNames = ['copy_ring', 'stat_impossibility', 'center_anomaly', 'leak_signature', 'response_time', 'gnn_copy_ring', 'vae_anomaly', 'question_similarity', 'benford_law', 'xgboost_ensemble'];
+      const labels = ['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9', 'XGB'];
       const vals = engineNames.map(e => summaries[e]?.flagged_count || 0);
       barRef.current = new Chart(barCanvas, {
         type: 'bar',
@@ -415,6 +415,7 @@ function DashboardPage() {
     { name: 'gnn_copy_ring', label: 'E6 GNN', type: 'GPU', desc: 'GraphSAGE 2-layer' },
     { name: 'vae_anomaly', label: 'E7 VAE', type: 'GPU', desc: 'VAE + t-SNE' },
     { name: 'question_similarity', label: 'E8 NLP', type: 'GPU', desc: 'Sentence Transformer' },
+    { name: 'benford_law', label: 'E9 Benford', type: 'CPU', desc: "Benford's Law Chi²" },
     { name: 'xgboost_ensemble', label: 'XGBoost', type: 'GPU', desc: 'Meta-Classifier' },
   ];
 
@@ -543,6 +544,7 @@ function EnginesPage() {
     { name: 'gnn_copy_ring', label: 'E6 GNN' },
     { name: 'vae_anomaly', label: 'E7 VAE' },
     { name: 'question_similarity', label: 'E8 NLP' },
+    { name: 'benford_law', label: 'E9 Benford' },
     { name: 'xgboost_ensemble', label: 'Ensemble' },
   ];
 
