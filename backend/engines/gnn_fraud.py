@@ -86,8 +86,10 @@ class GNNFraudEngine(BaseEngine):
             edges_src, edges_tgt = [], []
             n_sample = len(sample_idx)
             
-            # Find top-k neighbors via batch dot product
-            k_neighbors = min(10, n_sample - 1)
+            # Find top-k neighbors via batch matching
+            k_neighbors = min(15, n_sample - 1)
+            # Random match rate for 4 options ≈ 0.25, so 0.35+ is meaningful  
+            sim_threshold = 0.35
             for i in range(0, n_sample, 200):
                 batch_end = min(i + 200, n_sample)
                 batch = sampled_answers[i:batch_end]
@@ -101,7 +103,7 @@ class GNNFraudEngine(BaseEngine):
                     matches[j, i + j] = 0  # exclude self
                     top_k = np.argsort(-matches[j])[:k_neighbors]
                     for k_idx in top_k:
-                        if matches[j, k_idx] > 0.5:
+                        if matches[j, k_idx] > sim_threshold:
                             edges_src.extend([i + j, int(k_idx)])
                             edges_tgt.extend([int(k_idx), i + j])
 
