@@ -68,41 +68,89 @@ class GNNFraudEngine(BaseEngine):
         copy_ring_data = kwargs.get("copy_ring_result", {})
         graph_data = copy_ring_data.get("graph_data", {"nodes": [], "edges": []})
 
-        if not graph_data["edges"]:
-            logger.info("No similarity graph available — building from scratch")
-            return EngineOutput(
-                engine_name=self.engine_name,
-                status="skipped",
-                result_data={"message": "No similarity graph available from Engine 1"},
-            )
+        if not graph_data.get("edges"):
+            logger.info("No E1 similarity graph — building k-NN graph from answer similarity")
+            self.report_progress(10, "Building k-NN similarity graph from answer data")
 
-        self.report_progress(10, "Building PyG graph from similarity data")
+            # Build a k-NN graph using answer similarity (top-k nearest neighbors)
+            # Sample if too many students
+            max_graph = min(n_students, 2000)
+            if n_students > max_graph:
+                sample_idx = np.random.choice(n_students, max_graph, replace=False)
+            else:
+                sample_idx = np.arange(n_students)
 
-        # ── Build node mapping ──
-        node_ids = list(set(
-            [n["id"] for n in graph_data["nodes"]]
-        ))
-        id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
-        n_graph_nodes = len(node_ids)
+            sampled_answers = answers[sample_idx]
+            # Compute pairwise Jaccard similarity using vectorized ops
+            # Use binary comparison (same answer = 1)
+            edges_src, edges_tgt = [], []
+            n_sample = len(sample_idx)
+            
+            # Find top-k neighbors via batch dot product
+            k_neighbors = min(10, n_sample - 1)
+            for i in range(0, n_sample, 200):
+                batch_end = min(i + 200, n_sample)
+                batch = sampled_answers[i:batch_end]
+                # Match matrix: how many questions have same answer
+                matches = np.array([
+                    (sampled_answers == batch[j:j+1]).sum(axis=1) / n_questions
+                    for j in range(batch.shape[0])
+                ])
+                # For each student in batch, get top-k most similar
+                for j in range(matches.shape[0]):
+                    matches[j, i + j] = 0  # exclude self
+                    top_k = np.argsort(-matches[j])[:k_neighbors]
+                    for k_idx in top_k:
+                        if matches[j, k_idx] > 0.5:
+                            edges_src.extend([i + j, int(k_idx)])
+                            edges_tgt.extend([int(k_idx), i + j])
 
-        if n_graph_nodes < 10:
-            return EngineOutput(
-                engine_name=self.engine_name,
-                status="skipped",
-                result_data={"message": f"Graph too small ({n_graph_nodes} nodes)"},
-            )
+            if not edges_src:
+                return EngineOutput(
+                    engine_name=self.engine_name,
+                    status="complete",
+                    result_data={"message": "No significant similarity found in answer data"},
+                    summary={"model": "GraphSAGE", "flagged": 0, "device": str(device)},
+                )
 
-        # ── Build edge index ──
-        edge_sources = []
-        edge_targets = []
-        for edge in graph_data["edges"]:
-            if edge["source"] in id_to_idx and edge["target"] in id_to_idx:
-                s = id_to_idx[edge["source"]]
-                t = id_to_idx[edge["target"]]
-                edge_sources.extend([s, t])
-                edge_targets.extend([t, s])
+            # Build PyG-compatible graph data
+            node_ids = [student_ids[idx] for idx in sample_idx]
+            id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+            n_graph_nodes = len(node_ids)
+            edge_index_np = np.array([edges_src, edges_tgt])
+            # Deduplicate
+            unique_edges = np.unique(edge_index_np, axis=1)
+            edge_index = torch.tensor(unique_edges, dtype=torch.long)
+            graph_data = {"nodes": [{"id": nid} for nid in node_ids], "edges": []}
+        else:
+            self.report_progress(10, "Building PyG graph from E1 similarity data")
 
-        edge_index = torch.tensor([edge_sources, edge_targets], dtype=torch.long)
+            # ── Build node mapping from E1 graph ──
+            node_ids = list(set(
+                [n["id"] for n in graph_data["nodes"]]
+            ))
+            id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+            n_graph_nodes = len(node_ids)
+
+            if n_graph_nodes < 10:
+                return EngineOutput(
+                    engine_name=self.engine_name,
+                    status="complete",
+                    result_data={"message": f"Graph too small ({n_graph_nodes} nodes)"},
+                    summary={"model": "GraphSAGE", "flagged": 0, "device": str(device)},
+                )
+
+            # ── Build edge index ──
+            edge_sources = []
+            edge_targets = []
+            for edge in graph_data["edges"]:
+                if edge["source"] in id_to_idx and edge["target"] in id_to_idx:
+                    s = id_to_idx[edge["source"]]
+                    t = id_to_idx[edge["target"]]
+                    edge_sources.extend([s, t])
+                    edge_targets.extend([t, s])
+
+            edge_index = torch.tensor([edge_sources, edge_targets], dtype=torch.long)
 
         # ── Build node features (6-dim) ──
         self.report_progress(20, "Computing 6-dimensional node features")

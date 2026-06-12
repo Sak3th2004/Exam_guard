@@ -289,10 +289,11 @@ def generate_exam_data(
     fraud_labels = np.zeros(n_students, dtype=np.int32)
 
     # Pattern A: Copy Rings — indices proportional to actual center count
+    # Realistic copy rings: small groups (3-8 students), ~0.05% of total
     ring_configs = [
-        {"size": 23, "center_idx": min(n_centers - 1, max(0, int(n_centers * 0.09))), "overlap": 0.85},
-        {"size": 15, "center_idx": min(n_centers - 1, max(0, int(n_centers * 0.20))), "overlap": 0.80},
-        {"size": 8, "center_indices": [
+        {"size": min(8, max(3, n_students // 500)), "center_idx": min(n_centers - 1, max(0, int(n_centers * 0.09))), "overlap": 0.85},
+        {"size": min(6, max(3, n_students // 600)), "center_idx": min(n_centers - 1, max(0, int(n_centers * 0.20))), "overlap": 0.80},
+        {"size": min(5, max(3, n_students // 800)), "center_indices": [
             min(n_centers - 1, max(0, int(n_centers * 0.23))),
             min(n_centers - 1, max(0, int(n_centers * 0.24))),
         ], "overlap": 0.82},
@@ -321,8 +322,9 @@ def generate_exam_data(
     # Pattern B: Paper Leak — range proportional to question count
     leak_start = max(0, int(n_questions * 0.22))
     leak_end = min(n_questions, int(n_questions * 0.60))
-    n_leak = min(340, n_students // 3)
-    report_progress(40, f"Injecting fraud Pattern B: paper leak (Q{leak_start+1}-Q{leak_end})")
+    # Realistic leak: ~3% of students (not 33%!)
+    n_leak = max(5, min(n_students // 30, 3000))
+    report_progress(40, f"Injecting fraud Pattern B: paper leak (Q{leak_start+1}-Q{leak_end}, {n_leak} students)")
 
     leaked_indices = _inject_paper_leak(
         answers=answers,
@@ -351,12 +353,10 @@ def generate_exam_data(
     )
     ground_truth["anomalous_centers"] = anomalous_center_indices
 
-    # Mark students at anomalous centers
-    for ctr_idx in anomalous_center_indices:
-        ctr_id = center_ids[ctr_idx]
-        if ctr_id in student_indices_by_center:
-            for s_idx in student_indices_by_center[ctr_id]:
-                fraud_labels[s_idx] = 1
+    # NOTE: Don't mark ALL students at anomalous centers as fraud.
+    # The center is flagged, but individual students are not necessarily
+    # cheating — only the center-level patterns are suspicious.
+    # This keeps fraud rate realistic.
 
     # Recompute scores and correct_matrix after fraud injection
     correct_matrix = (answers == answer_key[np.newaxis, :])
@@ -380,7 +380,8 @@ def generate_exam_data(
             timing_data=timing_data,
             leaked_indices=leaked_indices,
             leak_range=(leak_start, leak_end),
-            n_cheaters=min(89, len(leaked_indices) // 4 + 1),
+            # ~30% of leaked students also have timing anomalies
+            n_cheaters=max(3, len(leaked_indices) // 3),
             rng=rng,
         )
         ground_truth["timing_cheaters"] = timing_cheater_indices.tolist()

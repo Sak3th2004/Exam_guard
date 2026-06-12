@@ -103,8 +103,19 @@ async def run_e2e():
         ("E8 NLP (Sentence Transformer)", QuestionSimilarityEngine()),
     ]
 
+    e1_result = engine_results.get("copy_ring")
+    copy_ring_result = {}
+    if e1_result and e1_result.result_data:
+        copy_ring_result = {
+            "graph_data": e1_result.result_data.get("graph_data", {"nodes": [], "edges": []}),
+            "clusters": e1_result.result_data.get("clusters", []),
+        }
+
     for name, engine in gpu_engines:
         t_eng = time.time()
+        extra_kwargs = {}
+        if engine.engine_name == "gnn_copy_ring":
+            extra_kwargs["copy_ring_result"] = copy_ring_result
         result = await engine.analyze(
             answers=data.answers,
             answer_key=data.answer_key,
@@ -113,6 +124,7 @@ async def run_e2e():
             timing_data=data.timing_data,
             question_texts=data.question_texts,
             ground_truth=data.ground_truth,
+            **extra_kwargs,
         )
         dt = time.time() - t_eng
         engine_results[engine.engine_name] = result

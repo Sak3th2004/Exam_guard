@@ -339,7 +339,23 @@ async def download_report(analysis_id: str, session: AsyncSession = Depends(get_
             select(EngineResult).where(EngineResult.analysis_id == analysis_id)
         )
         for er in result.scalars().all():
-            engine_data[er.engine_name] = json.loads(er.result_data) if er.result_data else {}
+            rd = json.loads(er.result_data) if er.result_data else {}
+            # Also get flagged student IDs from FlaggedEntity table
+            flagged_q = await session.execute(
+                select(FlaggedEntity.entity_id).where(
+                    FlaggedEntity.analysis_id == analysis_id,
+                    FlaggedEntity.engine_name == er.engine_name,
+                )
+            )
+            fids = [r[0] for r in flagged_q.all()]
+            engine_data[er.engine_name] = {
+                "result_data": rd,
+                "flagged_student_ids": fids,
+                "flagged_count": er.flagged_count or len(fids),
+                "status": er.status or "complete",
+                "duration_ms": er.duration_ms,
+                "summary": json.loads(er.summary) if er.summary else {},
+            }
 
         await generate_report(
             analysis_id=analysis_id,
