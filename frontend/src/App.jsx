@@ -849,7 +849,7 @@ function ComparePage() {
               borderRadius: 'var(--radius-sm)',
             }}>
               <strong style={{ color: comparison.p_value < 0.01 ? 'var(--danger)' : 'var(--success)' }}>
-                {comparison.p_value < 0.01 ? '⚠️ Statistically Suspicious Match' : '✅ Normal Match'}
+                {comparison.p_value < 0.01 ? 'Statistically Suspicious Match' : 'Normal Match'}
               </strong>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
                 P-value: {comparison.p_value?.toExponential(2)} · {comparison.human_readable || ''}
