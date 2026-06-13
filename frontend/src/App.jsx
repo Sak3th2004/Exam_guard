@@ -65,7 +65,7 @@ function HomePage() {
     n_students: 1000,
     n_questions: 50,
     n_centers: 10,
-    exam_name: 'NEET 2026 Forensic Simulation',
+    exam_name: 'CBT Examination 2026',
   });
 
   const handleGenerate = async () => {
@@ -103,9 +103,31 @@ function HomePage() {
 
   return (
     <div className="animate-fade-in">
-      <div className="page-header">
-        <h1 className="page-header__title">ExamGuard</h1>
-        <p className="page-header__subtitle">Examination integrity analysis platform</p>
+      <div style={{ marginBottom: '32px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-heading)', marginBottom: '6px' }}>
+          Examination Analysis
+        </h1>
+        <p style={{ fontSize: '14px', color: 'var(--text-muted)', maxWidth: '600px' }}>
+          Upload answer sheet data or run a simulation to detect irregularities across exam centers.
+        </p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '28px' }}>
+        {[
+          { label: 'Detection Engines', value: '9', sub: 'Statistical + ML' },
+          { label: 'Analysis Layers', value: '3', sub: 'Classical → Deep → Ensemble' },
+          { label: 'Fraud Types', value: '4', sub: 'Copy Ring, Leak, Center, Timing' },
+          { label: 'Output', value: 'PDF', sub: 'Full forensic report' },
+        ].map((s, i) => (
+          <div key={i} style={{
+            background: 'white', border: '1px solid var(--border)', borderRadius: '10px',
+            padding: '18px 16px', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--accent)' }}>{s.value}</div>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.label}</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{s.sub}</div>
+          </div>
+        ))}
       </div>
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>

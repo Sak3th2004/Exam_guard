@@ -454,5 +454,3 @@ async def generate_report(
     doc.build(story)
     logger.info(f"PDF report saved to {output_path}")
     return output_path
-""",
-<parameter name="toolAction">Rewriting PDF report

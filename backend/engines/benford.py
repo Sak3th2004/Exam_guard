@@ -70,33 +70,40 @@ class BenfordEngine(BaseEngine):
                 summary={"applicable": False},
             )
 
-        # ── Step 2: Extract first digits ──
+        # Check if data spans enough orders of magnitude for Benford to apply
+        score_range_ratio = float(nonzero_scores.max()) / float(nonzero_scores.min()) if nonzero_scores.min() > 0 else 1
+        if score_range_ratio < 10:
+            return EngineOutput(
+                engine_name=self.engine_name,
+                status="complete",
+                result_data={
+                    "message": "Score range too narrow for Benford analysis",
+                    "score_range_ratio": round(score_range_ratio, 2),
+                    "conforms_to_benford": True,
+                },
+                summary={"applicable": False, "conforms": True, "flagged": 0},
+            )
+
         self.report_progress(30, "Extracting first-digit distribution")
 
         first_digits = np.array([int(str(abs(int(s)))[0]) for s in nonzero_scores])
 
-        # Observed distribution
         observed_counts = np.array([np.sum(first_digits == d) for d in range(1, 10)])
         observed_freq = observed_counts / observed_counts.sum()
 
-        # Expected Benford distribution
         benford_freq = np.array([np.log10(1 + 1/d) for d in range(1, 10)])
 
-        # ── Step 3: Chi-squared goodness-of-fit test ──
         self.report_progress(50, "Running chi-squared goodness-of-fit test")
 
         expected_counts = benford_freq * observed_counts.sum()
         chi2_stat, chi2_pvalue = stats.chisquare(observed_counts, f_exp=expected_counts)
 
-        # ── Step 4: KL Divergence ──
         self.report_progress(60, "Computing KL divergence")
 
-        # Smooth to avoid log(0)
         obs_smooth = observed_freq + 1e-10
         obs_smooth /= obs_smooth.sum()
         kl_divergence = float(np.sum(obs_smooth * np.log(obs_smooth / benford_freq)))
 
-        # ── Step 5: Per-center Benford analysis ──
         self.report_progress(70, "Analyzing per-center Benford conformity")
 
         flagged_centers = []
@@ -109,13 +116,17 @@ class BenfordEngine(BaseEngine):
                 center_scores = scores[center_mask]
                 center_nonzero = center_scores[center_scores > 0]
 
-                if len(center_nonzero) < 20:
+                if len(center_nonzero) < 30:
+                    continue
+
+                center_range = float(center_nonzero.max()) / float(center_nonzero.min()) if center_nonzero.min() > 0 else 1
+                if center_range < 10:
                     continue
 
                 center_digits = np.array([int(str(abs(int(s)))[0]) for s in center_nonzero])
                 center_counts = np.array([np.sum(center_digits == d) for d in range(1, 10)])
 
-                if center_counts.sum() < 20:
+                if center_counts.sum() < 30:
                     continue
 
                 center_expected = benford_freq * center_counts.sum()
@@ -128,10 +139,9 @@ class BenfordEngine(BaseEngine):
                     "conforms": c_pval > 0.05,
                 }
 
-                if c_pval < 0.01:  # Strong deviation
+                if c_pval < 0.001 and kl_divergence > 0.1:
                     flagged_centers.append(cid)
 
-        # ── Step 6: Flag students from anomalous centers ──
         self.report_progress(85, "Flagging students from Benford-anomalous centers")
 
         flagged_ids = []
@@ -140,7 +150,6 @@ class BenfordEngine(BaseEngine):
                 if i < len(center_ids) and center_ids[i] in flagged_centers:
                     flagged_ids.append(sid)
 
-        # ── Step 7: Overall conformity verdict ──
         conforms = chi2_pvalue > 0.05
         severity = "low" if chi2_pvalue > 0.1 else "medium" if chi2_pvalue > 0.01 else "high"
 

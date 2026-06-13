@@ -83,7 +83,7 @@ class GenerateRequest(BaseModel):
     n_options: int = Field(default=4, ge=2, le=6)
     include_timing: bool = Field(default=True)
     include_question_text: bool = Field(default=True)
-    exam_name: str = Field(default="NEET 2026 Forensic Simulation")
+    exam_name: str = Field(default="CBT Examination 2026")
     fraud_config: Optional[FraudConfig] = None
 
 

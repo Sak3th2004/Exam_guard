@@ -27,7 +27,7 @@ export const api = {
         n_options: config.n_options || 4,
         include_timing: config.include_timing !== false,
         include_question_text: config.include_question_text !== false,
-        exam_name: config.exam_name || 'NEET 2026 Forensic Simulation',
+        exam_name: config.exam_name || 'CBT Examination 2026',
       }),
     });
     return res.json();
