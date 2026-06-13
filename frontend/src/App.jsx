@@ -3,10 +3,6 @@ import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, useLocation
 import { api } from './api';
 import './index.css';
 
-// ═══════════════════════════════════════════════
-// Sidebar
-// ═══════════════════════════════════════════════
-
 function Sidebar({ analysisId }) {
   const location = useLocation();
   const isActive = (path) => location.pathname.includes(path);
@@ -19,48 +15,45 @@ function Sidebar({ analysisId }) {
       </div>
       <nav className="sidebar__nav">
         <Link to="/" className={`sidebar__link ${location.pathname === '/' ? 'sidebar__link--active' : ''}`}>
-          <span className="sidebar__link-icon">🏠</span>Home
+          Home
         </Link>
         {analysisId && (
           <>
             <Link to={`/analysis/${analysisId}`}
               className={`sidebar__link ${isActive(`/analysis/${analysisId}`) && !isActive('/engines') && !isActive('/rankings') && !isActive('/graph') && !isActive('/benchmark') && !isActive('/compare') ? 'sidebar__link--active' : ''}`}>
-              <span className="sidebar__link-icon">📊</span>Dashboard
+              Dashboard
             </Link>
             <Link to={`/analysis/${analysisId}/engines`}
               className={`sidebar__link ${isActive('/engines') ? 'sidebar__link--active' : ''}`}>
-              <span className="sidebar__link-icon">⚙️</span>Engine Detail
+              Engine Detail
             </Link>
             <Link to={`/analysis/${analysisId}/rankings`}
               className={`sidebar__link ${isActive('/rankings') ? 'sidebar__link--active' : ''}`}>
-              <span className="sidebar__link-icon">🏆</span>Fraud Rankings
+              Fraud Rankings
             </Link>
             <Link to={`/analysis/${analysisId}/graph`}
               className={`sidebar__link ${isActive('/graph') ? 'sidebar__link--active' : ''}`}>
-              <span className="sidebar__link-icon">🔗</span>Network Graph
+              Network Graph
             </Link>
             <Link to={`/analysis/${analysisId}/compare`}
               className={`sidebar__link ${isActive('/compare') ? 'sidebar__link--active' : ''}`}>
-              <span className="sidebar__link-icon">🔍</span>Compare Students
+              Compare Students
             </Link>
             <Link to={`/analysis/${analysisId}/benchmark`}
               className={`sidebar__link ${isActive('/benchmark') ? 'sidebar__link--active' : ''}`}>
-              <span className="sidebar__link-icon">📈</span>Benchmarks
+              Benchmarks
             </Link>
           </>
         )}
       </nav>
       <div className="sidebar__footer">
         <p>ExamGuard v2.0</p>
-        <p>4-Layer AI · 9 Engines</p>
       </div>
     </aside>
   );
 }
 
-// ═══════════════════════════════════════════════
-// Home Page — Generate + CSV Upload
-// ═══════════════════════════════════════════════
+
 
 function HomePage() {
   const navigate = useNavigate();
@@ -110,41 +103,28 @@ function HomePage() {
 
   return (
     <div className="animate-fade-in">
-      {/* Hero */}
-      <div className="hero">
-        <div className="hero__badge"><span>🛡️</span> Forensic Intelligence Platform</div>
-        <h1 className="hero__title">ExamGuard</h1>
-        <p className="hero__desc">
-          AI-powered forensic analysis for examination integrity.
-          Detect fraud patterns with mathematical certainty.
-        </p>
-        <div className="hero__specs">
-          <span className="hero__spec"><span className="hero__spec-dot" />4-Layer Hybrid Detection</span>
-          <span className="hero__spec"><span className="hero__spec-dot" />8 Independent Engines</span>
-          <span className="hero__spec"><span className="hero__spec-dot" />XGBoost Meta-Ensemble</span>
-          <span className="hero__spec"><span className="hero__spec-dot" />PDF Forensic Reports</span>
-        </div>
+      <div className="page-header">
+        <h1 className="page-header__title">ExamGuard</h1>
+        <p className="page-header__subtitle">Examination integrity analysis platform</p>
       </div>
 
-      {/* Tab selector */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
         <button className={`btn ${activeTab === 'generate' ? 'btn--primary' : 'btn--secondary'}`}
                 onClick={() => setActiveTab('generate')}>
-          🧪 Generate Simulation
+          Run Analysis
         </button>
         <button className={`btn ${activeTab === 'upload' ? 'btn--primary' : 'btn--secondary'}`}
                 onClick={() => setActiveTab('upload')}>
-          📁 Upload CSV
+          Upload CSV
         </button>
       </div>
 
-      {/* Generate Tab */}
       {activeTab === 'generate' && (
         <div className="card" style={{ marginBottom: '28px' }}>
           <div className="card__header">
             <div>
-              <h2 className="card__title">Generate Forensic Simulation</h2>
-              <p className="card__subtitle">Create IRT-based synthetic exam data with planted fraud patterns</p>
+              <h2 className="card__title">New Analysis</h2>
+              <p className="card__subtitle">Configure exam parameters and run the detection pipeline</p>
             </div>
           </div>
           <div className="form-grid">
@@ -171,13 +151,9 @@ function HomePage() {
           </div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <button className="btn btn--primary btn--lg" onClick={handleGenerate} disabled={loading} id="generate-btn">
-              {loading ? <span className="spinner" /> : '🚀'} Generate & Analyze
+              {loading ? <span className="spinner" /> : null} Start Analysis
             </button>
-            {loading && <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Running all 9 detection engines...</span>}
-          </div>
-          <div className="form-note">
-            <p>📊 Generates IRT 2PL data with 4 fraud types: copy rings, paper leak, center anomaly, timing fraud</p>
-            <p>⚡ Runs 9 engines: MinHash LSH, Binomial+Bonferroni, IsolationForest, IRT 2PL, KDE+KMeans, GraphSAGE, VAE, Sentence-BERT, XGBoost</p>
+            {loading && <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Processing...</span>}
           </div>
         </div>
       )}
@@ -188,11 +164,10 @@ function HomePage() {
           <div className="card__header">
             <div>
               <h2 className="card__title">Upload Exam Data</h2>
-              <p className="card__subtitle">Drag-drop a CSV file with student answer data for forensic analysis</p>
+              <p className="card__subtitle">CSV file with student answer sheets</p>
             </div>
           </div>
           <div
-            className="upload-zone"
             style={{
               border: `2px dashed ${dragOver ? 'var(--accent)' : 'var(--border)'}`,
               borderRadius: 'var(--radius-md)',
@@ -207,12 +182,11 @@ function HomePage() {
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
           >
-            <div style={{ fontSize: '40px', marginBottom: '12px' }}>📂</div>
             <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
-              {dragOver ? 'Drop your CSV here...' : 'Click to upload or drag & drop'}
+              {dragOver ? 'Drop file here' : 'Click to upload or drag and drop'}
             </p>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              Supports CSV files with columns: student_id, answers (comma-separated), center_id (optional)
+              Columns: student_id, q1, q2, ..., qN, center_id (optional)
             </p>
             <input ref={fileInputRef} type="file" accept=".csv" style={{ display: 'none' }}
                    onChange={(e) => handleFileUpload(e.target.files[0])} />
@@ -220,50 +194,18 @@ function HomePage() {
           {loading && (
             <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span className="spinner" />
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Uploading and analyzing...</span>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Processing...</span>
             </div>
           )}
-          <div className="form-note" style={{ marginTop: '16px' }}>
-            <p><strong>CSV Format:</strong> Each row = 1 student. Columns: student_id, q1, q2, ..., qN (integer answers 0-3)</p>
-            <p><strong>Optional columns:</strong> center_id, timing_q1, timing_q2, ... (response times in seconds)</p>
-          </div>
         </div>
       )}
 
-      {/* Algorithms Used */}
-      <div className="card">
-        <h2 className="card__title" style={{ marginBottom: '16px' }}>Detection Algorithms</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
-          {[
-            { name: 'MinHash LSH + Louvain', layer: 'Layer 1', desc: 'Copy ring detection via locality-sensitive hashing' },
-            { name: 'Binomial + Bonferroni', layer: 'Layer 1', desc: 'Statistical impossibility proof for matching patterns' },
-            { name: 'Isolation Forest', layer: 'Layer 1', desc: 'Center-level anomaly detection with z-score flagging' },
-            { name: 'IRT 2PL + Person-Fit', layer: 'Layer 1', desc: 'Item Response Theory for leak signature detection' },
-            { name: 'KDE + K-Means', layer: 'Layer 1', desc: 'Response time forensics for pre-knowledge detection' },
-            { name: 'GraphSAGE (GNN)', layer: 'Layer 2', desc: '2-layer graph neural network on PyTorch Geometric' },
-            { name: 'VAE Autoencoder', layer: 'Layer 2', desc: 'Variational autoencoder for anomaly pattern detection' },
-            { name: 'Sentence-BERT', layer: 'Layer 2', desc: 'NLP similarity using all-MiniLM-L6-v2 embeddings' },
-            { name: 'XGBoost Ensemble', layer: 'Layer 3', desc: 'GPU-accelerated gradient boosting meta-classifier' },
-          ].map((algo, i) => (
-            <div key={i} className="engine-card">
-              <div className="engine-card__header">
-                <span className="engine-card__name">{algo.name}</span>
-                <span className={`engine-card__badge engine-card__badge--${algo.layer === 'Layer 2' ? 'gpu' : algo.layer === 'Layer 3' ? 'gpu' : 'cpu'}`}>
-                  {algo.layer}
-                </span>
-              </div>
-              <div className="engine-card__status">{algo.desc}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════
-// Dashboard Page — with Chart.js Visualizations
-// ═══════════════════════════════════════════════
+
 
 function DashboardPage() {
   const { id } = useParams();
@@ -428,30 +370,24 @@ function DashboardPage() {
         </p>
       </div>
 
-      {/* Stats */}
       <div className="stats-grid">
         <div className="stat-card stat-card--blue">
-          <div className="stat-card__icon">👨‍🎓</div>
           <div className="stat-card__value">{(analysis.total_students || 0).toLocaleString()}</div>
           <div className="stat-card__label">Students</div>
         </div>
         <div className="stat-card stat-card--purple">
-          <div className="stat-card__icon">📋</div>
           <div className="stat-card__value">{analysis.total_questions || 0}</div>
           <div className="stat-card__label">Questions</div>
         </div>
         <div className="stat-card stat-card--cyan">
-          <div className="stat-card__icon">🏫</div>
           <div className="stat-card__value">{analysis.total_centers || 0}</div>
           <div className="stat-card__label">Centers</div>
         </div>
         <div className="stat-card stat-card--green">
-          <div className="stat-card__icon">🛡️</div>
           <div className="stat-card__value" style={{ color: scoreColor }}>{score.toFixed(1)}</div>
-          <div className="stat-card__label">Integrity</div>
+          <div className="stat-card__label">Integrity Score</div>
         </div>
         <div className="stat-card stat-card--red">
-          <div className="stat-card__icon">🚩</div>
           <div className="stat-card__value">{(analysis.total_flagged || 0).toLocaleString()}</div>
           <div className="stat-card__label">Flagged</div>
         </div>
@@ -511,23 +447,20 @@ function DashboardPage() {
         </div>
       </div>
 
-      {/* Actions */}
       {analysis.status === 'complete' && (
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <Link to={`/analysis/${id}/engines`} className="btn btn--primary">⚙️ Engine Details</Link>
-          <Link to={`/analysis/${id}/rankings`} className="btn btn--secondary">🏆 Fraud Rankings</Link>
-          <Link to={`/analysis/${id}/compare`} className="btn btn--secondary">🔍 Compare Students</Link>
-          <Link to={`/analysis/${id}/benchmark`} className="btn btn--secondary">📈 Benchmarks</Link>
-          <a href={api.getReportUrl(id)} className="btn btn--secondary" target="_blank" rel="noopener">📄 PDF Report</a>
+          <Link to={`/analysis/${id}/engines`} className="btn btn--primary">Engine Details</Link>
+          <Link to={`/analysis/${id}/rankings`} className="btn btn--secondary">Fraud Rankings</Link>
+          <Link to={`/analysis/${id}/compare`} className="btn btn--secondary">Compare Students</Link>
+          <Link to={`/analysis/${id}/benchmark`} className="btn btn--secondary">Benchmarks</Link>
+          <a href={api.getReportUrl(id)} className="btn btn--secondary" target="_blank" rel="noopener">Download Report</a>
         </div>
       )}
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════
-// Engines Detail Page
-// ═══════════════════════════════════════════════
+
 
 function EnginesPage() {
   const { id } = useParams();
@@ -637,9 +570,7 @@ function EnginesPage() {
   );
 }
 
-// ═══════════════════════════════════════════════
-// Rankings Page
-// ═══════════════════════════════════════════════
+
 
 function RankingsPage() {
   const { id } = useParams();
@@ -786,9 +717,7 @@ function GraphPage() {
   );
 }
 
-// ═══════════════════════════════════════════════
-// Student Comparison Page — NEW
-// ═══════════════════════════════════════════════
+
 
 function ComparePage() {
   const { id } = useParams();
@@ -854,7 +783,7 @@ function ComparePage() {
             </select>
           </div>
           <button className="btn btn--primary" onClick={handleCompare} disabled={loading || !studentA || !studentB}>
-            {loading ? <span className="spinner" /> : '🔍'} Compare
+            {loading ? <span className="spinner" /> : null} Compare
           </button>
         </div>
       </div>
@@ -933,9 +862,7 @@ function ComparePage() {
   );
 }
 
-// ═══════════════════════════════════════════════
-// Benchmark Page
-// ═══════════════════════════════════════════════
+
 
 function BenchmarkPage() {
   const { id } = useParams();
@@ -1023,9 +950,7 @@ function BenchmarkPage() {
   );
 }
 
-// ═══════════════════════════════════════════════
-// App Root
-// ═══════════════════════════════════════════════
+
 
 function AppLayout() {
   const location = useLocation();
