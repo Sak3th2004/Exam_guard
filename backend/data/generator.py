@@ -1,17 +1,4 @@
-"""IRT-Based Synthetic Exam Data Generator.
-
-Generates statistically realistic examination data using Item Response Theory
-(2-Parameter Logistic model) with deliberately planted fraud patterns.
-
-Fraud Patterns:
-  A) Copy rings — clusters of students sharing answers
-  B) Paper leak — students with leaked question answers
-  C) Center anomalies — centers with systematic fraud
-  D) Response time cheating — impossibly fast answers
-
-All data follows real psychometric distributions. NO random/fake data.
-Ground truth labels enable supervised training of GNN + XGBoost.
-"""
+"""IRT 2PL synthetic exam data generator with planted fraud patterns."""
 
 from __future__ import annotations
 

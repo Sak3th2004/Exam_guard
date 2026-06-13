@@ -1,18 +1,4 @@
-"""Analysis Orchestrator — Parallel Engine Execution.
-
-Manages execution of all 8 detection engines + XGBoost ensemble:
-  - CPU engines run in parallel (asyncio)
-  - GPU engines run sequentially (shared VRAM)
-  - Progress streamed via WebSocket callbacks
-  - Graceful degradation if any engine fails
-  - Computes overall integrity score from all results
-
-Architecture principles:
-  1. Separation: Detection (Layers 1-3) is math/ML. Narration (Layer 4) is LLM.
-  2. Graceful degradation: If GPU fails, classical engines still work.
-  3. Parallel execution: CPU engines concurrent, GPU sequential.
-  4. Real-time streaming: Per-engine progress via WebSocket.
-"""
+"""Analysis orchestrator — manages parallel engine execution and scoring."""
 
 from __future__ import annotations
 
@@ -107,9 +93,7 @@ class AnalysisOrchestrator:
             "ground_truth": ground_truth,
         }
 
-        # ═══════════════════════════════════════
-        # LAYER 1: Classical Engines (parallel)
-        # ═══════════════════════════════════════
+        # Layer 1: Classical engines (parallel)
         logger.info("Starting Layer 1: Classical Detection Engines")
 
         layer1_tasks = [
@@ -153,9 +137,7 @@ class AnalysisOrchestrator:
 
         logger.info("Layer 1 complete. Starting Layer 2: Deep Learning")
 
-        # ═══════════════════════════════════════
-        # LAYER 2: Deep Learning (sequential — shared GPU)
-        # ═══════════════════════════════════════
+        # Layer 2: Deep Learning (sequential GPU)
 
         # E6: GNN (depends on E1 graph)
         e6_result = await self._run_engine(
@@ -186,9 +168,7 @@ class AnalysisOrchestrator:
 
         logger.info("Layer 2 complete. Starting Layer 3: XGBoost Ensemble")
 
-        # ═══════════════════════════════════════
-        # LAYER 3: XGBoost Ensemble
-        # ═══════════════════════════════════════
+        # Layer 3: XGBoost ensemble
 
         ensemble_result = await self._run_engine(
             self.xgboost_ensemble, common_kwargs, {
@@ -201,9 +181,7 @@ class AnalysisOrchestrator:
         )
         results["xgboost_ensemble"] = ensemble_result
 
-        # ═══════════════════════════════════════
-        # Compute Overall Integrity Score
-        # ═══════════════════════════════════════
+        # Compute overall integrity score
         total_flagged = len(set().union(*(
             set(r.flagged_student_ids) for r in results.values()
         )))

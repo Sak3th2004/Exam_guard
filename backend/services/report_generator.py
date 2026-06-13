@@ -1,16 +1,4 @@
-"""PDF Forensic Report Generator.
-
-Generates comprehensive PDF reports with:
-  - Cover page with assessment verdict
-  - Executive summary with overall stats
-  - Per-engine findings with ACTUAL data tables
-  - Top 20 flagged students with fraud probabilities
-  - Copy ring cluster details
-  - Center anomaly evidence
-  - XGBoost ensemble feature importance
-  - Methodology section
-  - Evidence chain
-"""
+"""PDF forensic report generator."""
 
 from __future__ import annotations
 
