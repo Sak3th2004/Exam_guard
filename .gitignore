@@ -65,3 +65,6 @@ htmlcov/
 EXAMGUARD_v2_COMPLETE_MASTER.md
 EXAMGUARD_v2_AI_AGENT_PROMPT.md
 EXAMGUARD_v2_README.md
+
+# Large generated datasets (keep small samples)
+sample_data/exam_100k_*

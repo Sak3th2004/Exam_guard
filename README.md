@@ -88,15 +88,27 @@ Frontend runs at `http://localhost:5173`
 
 ## Sample Data
 
-The `sample_data/` directory contains pre-generated exam data for testing:
+### Quick Test (included in repo)
 
-- `sample_exam_answers.csv` — 100 students × 30 questions with planted fraud
-- `sample_answer_key.csv` — correct answers
-- `sample_timing_data.csv` — response times per question
+The `sample_data/` directory contains pre-generated exam data:
 
-**Planted fraud patterns:**
-- Copy ring: STU_0000 through STU_0004 (70-95% answer overlap)
-- Paper leak: STU_0010 through STU_0014 (90% accuracy on hardest questions)
+| File | Contents |
+|------|----------|
+| `sample_exam_answers.csv` | 100 students × 30 questions with planted fraud |
+| `sample_answer_key.csv` | Correct answers |
+| `sample_timing_data.csv` | Response times per question |
+
+**Planted fraud:** Copy ring (STU_0000–STU_0004), Paper leak (STU_0010–STU_0014)
+
+### Scale Test (1,00,000 students)
+
+To generate a full-scale dataset locally:
+```bash
+cd backend
+python -c "from data.generator import generate_exam_data; generate_exam_data(100000, 200, 50)"
+```
+
+Or use the built-in simulator: set Students to `100000` in the UI and click Start Analysis.
 
 ## Usage
 
