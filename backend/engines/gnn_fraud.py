@@ -101,7 +101,7 @@ class GNNFraudEngine(BaseEngine):
                 top_k = np.argsort(-match_frac[j])[:k_neighbors]
                 for k_idx in top_k:
                     sim = match_frac[j, int(k_idx)]
-                    if sim > 0.30:  # Low threshold to ensure dense graph
+                    if sim > 0.50:
                         edges_src.append(global_j)
                         edges_tgt.append(int(k_idx))
                         edge_weights.append(sim)
@@ -242,7 +242,7 @@ class GNNFraudEngine(BaseEngine):
                 0.3 * avg_neighbor_sim +
                 0.3 * (1 - features[:, 0])  # low score = more suspicious
             )
-            threshold = np.percentile(combined_score, 85)
+            threshold = np.percentile(combined_score, 92)
             labels = torch.tensor((combined_score > threshold).astype(int), dtype=torch.long)
             n_fraud = int((labels == 1).sum())
             n_clean = int((labels == 0).sum())
@@ -351,7 +351,7 @@ class GNNFraudEngine(BaseEngine):
             fraud_probs = probs[:, 1].cpu().numpy()
 
         # Flag students with fraud probability > 0.5
-        flagged_mask = fraud_probs > 0.5
+        flagged_mask = fraud_probs > 0.65
         flagged_ids = [node_ids[i] for i in range(n_graph_nodes) if flagged_mask[i]]
 
         # Find novel detections (not in copy ring)

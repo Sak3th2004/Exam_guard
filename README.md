@@ -1,191 +1,158 @@
-# ExamGuard v2.0 — AI Forensic Intelligence Platform
+# ExamGuard
 
-> **"ExamGuard doesn't prevent cheating — it makes cheating mathematically and computationally undeniable."**
+Forensic analysis platform for detecting fraud patterns in computer-based examinations.
 
-4-Layer Hybrid AI system for automated examination fraud detection with mathematical rigor and GPU-accelerated deep learning.
+Built for **FAR AWAY 2026** — *Examinations* theme.
 
-**Theme:** Examinations — FAR AWAY 2026 Hackathon  
-**Author:** Sai Saketh Ram Gunnam  
-**Hardware:** Ryzen 9 · 24GB RAM · 1TB SSD · NVIDIA RTX 4060 (8GB VRAM, CUDA 12.x)
+## Problem
 
----
+Large-scale CBT exams (100k+ students) are vulnerable to:
+- **Copy rings** — coordinated answer sharing between students
+- **Paper leaks** — pre-exam access to questions/answers
+- **Center-level fraud** — systematic manipulation at specific test centers
+- **Timing anomalies** — impossibly fast responses indicating pre-knowledge
+
+Manual detection is infeasible at scale. ExamGuard automates this with 9 detection engines across 3 analysis layers.
 
 ## Architecture
 
 ```
-┌───────────────────────────────────────────────────────────────────┐
-│                FRONTEND (React 19 + Vite + Bootstrap 5)           │
-│  CSV Upload │ Dashboard │ Charts │ Compare │ Graph │ PDF Report   │
-└──────────────────────────┬────────────────────────────────────────┘
-                           │ REST API + WebSocket
-┌──────────────────────────┼────────────────────────────────────────┐
-│                     FASTAPI BACKEND                                │
-│                                                                    │
-│  ═══ LAYER 1: CLASSICAL DETECTION (CPU — parallel) ═══════════    │
-│  E1  Copy Ring     │ MinHash LSH + Louvain Community Detection    │
-│  E2  Stat Proof    │ Binomial Test + Bonferroni Correction        │
-│  E3  Center        │ Isolation Forest + Z-Score Anomaly           │
-│  E4  Leak          │ IRT 2PL + Difficulty Curve Inversion         │
-│  E5  Timing        │ KDE + K-Means Clustering                    │
-│  E9  Benford       │ Benford's Law Chi-Squared Forensics         │
-│                                                                    │
-│  ═══ LAYER 2: DEEP LEARNING (GPU — RTX 4060) ════════════════    │
-│  E6  GNN           │ GraphSAGE 2-layer (PyTorch Geometric)       │
-│  E7  VAE           │ Variational Autoencoder (PyTorch)            │
-│  E8  NLP           │ Sentence-BERT (all-MiniLM-L6-v2)            │
-│                                                                    │
-│  ═══ LAYER 3: META-ENSEMBLE (GPU) ════════════════════════════    │
-│  XGBoost           │ Gradient Boosted Meta-Classifier (gpu_hist)  │
-│                                                                    │
-│  ═══ LAYER 4: LLM NARRATOR (GPU, optional) ══════════════════    │
-│  Mistral 7B        │ Local LLM via Ollama + Template Fallback    │
-└───────────────────────────────────────────────────────────────────┘
+Layer 1: Classical Statistical Engines (CPU, parallel)
+├── E1  Copy Ring Detection      — MinHash LSH + Louvain community detection
+├── E2  Statistical Impossibility — Binomial test + Bonferroni correction
+├── E3  Center Anomaly           — Isolation Forest + Z-score
+├── E4  Leak Signature           — IRT 2PL difficulty gradient analysis
+├── E5  Response Time            — KDE + K-Means clustering
+└── E9  Benford's Law            — Chi-squared first-digit distribution test
+
+Layer 2: Deep Learning Engines (GPU, sequential)
+├── E6  GNN Fraud Detection      — 2-layer GraphSAGE node classification
+├── E7  VAE Anomaly Detector     — Variational Autoencoder + t-SNE
+└── E8  Question Similarity      — Sentence-BERT cosine similarity
+
+Layer 3: Ensemble Meta-Classifier
+└── XGBoost                      — Gradient boosted trees combining all engine outputs
 ```
-
-## Performance Benchmarks
-
-| Metric | Score |
-|--------|-------|
-| Accuracy | 99.7% |
-| Precision | 81.8% |
-| Recall | 85.7% |
-| F1 Score | 96.5% |
-| AUC-ROC | 97.8% |
-
-*Evaluated on 1,000 students with 4.2% planted fraud rate using IRT 2PL synthetic data.*
-
-## Detection Algorithms (10 total)
-
-| # | Algorithm | Engine | Library |
-|---|-----------|--------|---------|
-| 1 | MinHash LSH + Louvain | E1 Copy Ring | `datasketch`, `python-louvain` |
-| 2 | Binomial + Bonferroni | E2 Stat Proof | `scipy.stats` |
-| 3 | Isolation Forest | E3 Center | `scikit-learn` |
-| 4 | IRT 2PL + Person-Fit | E4 Leak | `scipy.optimize` |
-| 5 | KDE + K-Means | E5 Timing | `scipy`, `scikit-learn` |
-| 6 | GraphSAGE (2-layer GNN) | E6 GNN | `torch-geometric` |
-| 7 | Variational Autoencoder | E7 VAE | `torch` |
-| 8 | Sentence-BERT | E8 NLP | `sentence-transformers` |
-| 9 | Benford's Law | E9 Benford | `scipy.stats`, `numpy` |
-| 10 | XGBoost Gradient Boosting | Ensemble | `xgboost` (GPU) |
 
 ## Features
 
-### Data Input
-- **Synthetic Data Generator**: IRT 2PL model with 4 planted fraud types
-- **CSV Upload**: Drag-drop CSV with real exam data
-- **Auto-detection**: Column format, answer mapping (A/B/C/D → 0/1/2/3)
+- **9 detection engines** running in parallel with real-time WebSocket progress
+- **IRT 2PL data generator** with planted fraud patterns for testing
+- **CSV upload** for real exam data analysis
+- **Interactive dashboard** with radar charts, risk distribution, and engine comparison
+- **Student comparison view** with Jaccard similarity and statistical significance tests
+- **PDF forensic report** with per-engine findings and evidence
+- **XGBoost ensemble** ranking students by fraud probability with feature importance
 
-### Detection
-- **9 independent engines** spanning classical statistics + deep learning
-- **GPU-accelerated** inference on RTX 4060 (CUDA 12.x)
-- **XGBoost ensemble** combines 12 features from all engines
-- **Real-time WebSocket** progress streaming per engine
+## Tech Stack
 
-### Visualization
-- **Dashboard**: Radar chart, doughnut chart, bar chart (Chart.js)
-- **Network Graph**: Copy ring similarity network
-- **Student Comparison**: Side-by-side answer diff with WAA + p-value
-- **Feature Importance**: XGBoost feature contribution bars
+| Component | Technology |
+|-----------|-----------|
+| Backend | Python 3.11, FastAPI, SQLAlchemy |
+| ML/Stats | NumPy, SciPy, scikit-learn, NetworkX, datasketch |
+| Deep Learning | PyTorch, PyTorch Geometric, sentence-transformers |
+| Ensemble | XGBoost (GPU) |
+| Frontend | React 18, Vite, Chart.js |
+| Reports | ReportLab (PDF generation) |
 
-### Reporting
-- **PDF Reports**: Professional forensic reports with data tables
-- **LLM Narration**: Mistral 7B writes human-readable narratives (with template fallback)
-
-## Setup
+## Quick Start
 
 ### Prerequisites
 - Python 3.11+
 - Node.js 18+
-- NVIDIA GPU with CUDA 12.x (recommended)
-- Ollama (optional, for LLM narrator)
+- NVIDIA GPU with CUDA (optional, falls back to CPU)
 
 ### Backend
+
 ```bash
 cd backend
-pip install -r requirements.txt
-# For PyTorch with CUDA:
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-pip install torch-geometric torch-scatter torch-sparse
+python -m venv venv
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Linux/Mac
 
-python -m uvicorn main:app --port 8000
+pip install -r requirements.txt
+python main.py
 ```
 
+Backend runs at `http://127.0.0.1:8000`
+
 ### Frontend
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-### Run E2E Test
-```bash
-python tests/test_e2e.py
+Frontend runs at `http://localhost:5173`
+
+## Sample Data
+
+The `sample_data/` directory contains pre-generated exam data for testing:
+
+- `sample_exam_answers.csv` — 100 students × 30 questions with planted fraud
+- `sample_answer_key.csv` — correct answers
+- `sample_timing_data.csv` — response times per question
+
+**Planted fraud patterns:**
+- Copy ring: STU_0000 through STU_0004 (70-95% answer overlap)
+- Paper leak: STU_0010 through STU_0014 (90% accuracy on hardest questions)
+
+## Usage
+
+1. Open `http://localhost:5173`
+2. Either:
+   - Click **"Start Analysis"** to generate synthetic data and run all engines
+   - Click **"Upload CSV"** to analyze your own exam data
+3. View results on the dashboard:
+   - **Dashboard** — overview with integrity score, charts
+   - **Engine Detail** — per-engine findings (E1–E9)
+   - **Fraud Rankings** — XGBoost ensemble student rankings
+   - **Network Graph** — copy ring similarity clusters
+   - **Compare Students** — side-by-side answer comparison
+   - **Benchmarks** — accuracy, precision, recall metrics
+4. Click **"Download Report"** for a PDF forensic report
+
+## API
+
+Full API documentation: [`docs/api-reference.md`](docs/api-reference.md)
+
+Key endpoints:
+```
+POST   /api/v1/generate              Generate synthetic exam data + run analysis
+GET    /api/v1/analyses/{id}         Analysis status and results
+GET    /api/v1/analyses/{id}/report  Download PDF report
+POST   /api/v1/analyses/{id}/compare Compare two students
+GET    /health                       System status
 ```
 
-## Key Design Principles
+## Documentation
 
-1. **Separation of Concerns**: Detection (Layers 1-3) is pure math/ML. Narration (Layer 4) is LLM only. The LLM **never** makes detection decisions.
-2. **Graceful Degradation**: If GPU fails → classical engines still work. If Ollama is down → template text. Nothing is a single point of failure.
-3. **Parallel Execution**: CPU engines run concurrently via asyncio. GPU engines run sequentially (shared VRAM management).
-4. **Real-Time Streaming**: WebSocket pushes per-engine progress updates to frontend during analysis.
-
-## Technology Stack
-
-| Layer | Technologies |
-|-------|-------------|
-| **Backend** | FastAPI, SQLAlchemy, asyncio, uvicorn |
-| **Frontend** | React 19, Vite, Bootstrap 5, Chart.js |
-| **ML** | scikit-learn, XGBoost (GPU), PyTorch, PyTorch Geometric |
-| **NLP** | sentence-transformers (all-MiniLM-L6-v2) |
-| **LLM** | Ollama (Mistral 7B), httpx |
-| **Data** | IRT 2PL generator (scipy, numpy, pandas) |
-| **Reports** | ReportLab (PDF), matplotlib |
+- [`docs/algorithms.md`](docs/algorithms.md) — Mathematical foundations of each engine
+- [`docs/architecture.md`](docs/architecture.md) — System architecture and data flow
+- [`docs/api-reference.md`](docs/api-reference.md) — API endpoint reference
 
 ## Project Structure
 
 ```
-examguard/
-├── README.md
+ExamGuard/
 ├── backend/
-│   ├── main.py                    # FastAPI + CORS + lifespan
-│   ├── config.py                  # Settings
-│   ├── requirements.txt
-│   ├── api/routes/                # REST API + WebSocket
-│   ├── engines/                   # 9 detection engines
-│   │   ├── copy_ring.py           # E1: MinHash + Louvain
-│   │   ├── stat_impossibility.py  # E2: Binomial + Bonferroni
-│   │   ├── center_anomaly.py      # E3: Isolation Forest
-│   │   ├── leak_signature.py      # E4: IRT 2PL
-│   │   ├── response_time.py       # E5: KDE + K-Means
-│   │   ├── gnn_fraud.py           # E6: GraphSAGE (PyG)
-│   │   ├── vae_anomaly.py         # E7: VAE (PyTorch)
-│   │   ├── question_similarity.py # E8: Sentence-BERT
-│   │   ├── benford.py             # E9: Benford's Law
-│   │   ├── xgboost_ensemble.py    # Meta-Classifier
-│   │   └── orchestrator.py        # Parallel execution
-│   ├── data/                      # IRT generator + CSV ingestion
-│   ├── services/                  # PDF report + LLM narrator
-│   └── tests/
+│   ├── main.py                 # FastAPI entry point
+│   ├── config.py               # Settings and thresholds
+│   ├── engines/                # 9 detection engines + orchestrator
+│   ├── data/                   # IRT data generator, CSV ingestion
+│   ├── services/               # PDF reports, LLM narrator, comparison
+│   ├── api/                    # REST routes + WebSocket
+│   └── models/                 # Database models
 ├── frontend/
 │   └── src/
-│       ├── App.jsx                # All pages and components
-│       ├── api.js                 # API client
-│       └── index.css              # Design system
-└── docs/
-    ├── algorithms.md              # Algorithm reference
-    ├── api-reference.md           # REST API docs
-    └── architecture.md            # System architecture
+│       ├── App.jsx             # Main application (7 pages)
+│       ├── api.js              # Backend API client
+│       └── index.css           # Design system
+├── sample_data/                # Pre-generated test data
+├── docs/                       # Technical documentation
+└── README.md
 ```
-
-## References
-
-1. Benford, F. (1938). "The law of anomalous numbers." *Proceedings of the APS*
-2. Hamilton, W. et al. (2017). "Inductive Representation Learning on Large Graphs" (GraphSAGE)
-3. Kingma, D.P. & Welling, M. (2013). "Auto-Encoding Variational Bayes" (VAE)
-4. Chen, T. & Guestrin, C. (2016). "XGBoost: A Scalable Tree Boosting System"
-5. Blondel, V. et al. (2008). "Fast unfolding of communities" (Louvain)
-6. Lord, F.M. (1980). *Applications of Item Response Theory*
 
 ## License
 
